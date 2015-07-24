@@ -715,18 +715,19 @@ not a replacement occurs return the new STRING."
 If KEY contains any \"special keys\" defined in
 `which-key-special-keys' then truncate and add the corresponding
 `which-key-special-key-face'."
-  (let ((key-w-face (propertize key 'face 'which-key-key-face))
-        (regexp (concat "\\("
-                        (mapconcat 'identity which-key-special-keys
-                                   "\\|") "\\)")))
-    (save-match-data
-      (if (string-match regexp key)
-          (let ((beg (match-beginning 0)) (end (match-end 0)))
-            (concat (substring key-w-face 0 beg)
-                    (propertize (substring key-w-face beg (1+ beg))
-                                'face 'which-key-special-key-face)
-                    (substring key-w-face end (string-width key-w-face))))
-        key-w-face))))
+  (when which-key-special-keys
+    (let ((key-w-face (propertize key 'face 'which-key-key-face))
+          (regexp (concat "\\("
+                          (mapconcat 'identity which-key-special-keys
+                                     "\\|") "\\)")))
+      (save-match-data
+        (if (string-match regexp key)
+            (let ((beg (match-beginning 0)) (end (match-end 0)))
+              (concat (substring key-w-face 0 beg)
+                      (propertize (substring key-w-face beg (1+ beg))
+                                  'face 'which-key-special-key-face)
+                      (substring key-w-face end (string-width key-w-face))))
+          key-w-face)))))
 
 (defsubst which-key--truncate-description (desc)
   "Truncate DESC description to `which-key-max-description-length'."
