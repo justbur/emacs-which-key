@@ -40,6 +40,7 @@
 
 (require 'cl-lib)
 (require 'button)
+(require 'god-mode nil t)
 
 ;; For compiler
 (defvar evil-operator-shortcut-map)
@@ -2030,6 +2031,63 @@ Finally, show the buffer."
                    (which-key--create-pages formatted-keys))
              (which-key--show-page 0)))))
 
+(defun which-key--translate-god-mode-key-vector (key-vector)
+  (let ((index 0) (key-consumed t) key modifier next-modifier real-keys)
+    (while (< index (length key-vector))
+      (setq key (format "%c" (elt key-vector index)))
+      (setq key-consumed nil)
+      (cond
+       ((stringp next-modifier)
+        (setq modifier next-modifier)
+        (unless (string= next-modifier "")
+          (setq next-modifier nil)))
+       ((string= key god-literal-key)
+        (setq key-consumed t)
+        (setq next-modifier ""))
+       ((and
+         (stringp key)
+         (not (eq nil (assoc key god-mod-alist)))
+         (not (eq nil key)))
+        (setq key-consumed t)
+        (setq next-modifier (cdr (assoc key god-mod-alist))))
+       (t
+        (setq modifier (cdr (assoc nil god-mod-alist)))))
+      (unless key-consumed
+        (setq real-keys
+              (if real-keys
+                  (concat real-keys " " modifier key)
+                (concat modifier key))))
+      (setq index (1+ index)))
+    (vconcat (and real-keys (kbd real-keys)))))
+
+(defun which-key--god-mode-self-insert-command-p ()
+  (and (bound-and-true-p god-local-mode)
+       (eq this-command 'god-mode-self-insert)))
+
+(defun which-key--god-mode-self-insert-fix ()
+  "Hide which-key popup before execuing the command.
+The code is almost the same as `god-mode-self-insert'."
+  (interactive)
+  (let* ((initial-key (aref (this-command-keys-vector)
+                            (- (length (this-command-keys-vector)) 1)))
+         binding)
+    (unwind-protect
+        (setq binding (god-mode-lookup-key-sequence initial-key))
+      (when (bound-and-true-p which-key-mode)
+        (which-key--hide-popup)))
+    (when (god-mode-upper-p initial-key)
+      (setq this-command-keys-shift-translated t))
+    (setq this-original-command binding)
+    (setq this-command binding)
+    ;; `real-this-command' is used by emacs to populate
+    ;; `last-repeatable-command', which is used by `repeat'.
+    (setq real-this-command binding)
+    (setq god-literal-sequence nil)
+    (if (commandp binding t)
+        (call-interactively binding)
+      (execute-kbd-macro binding))))
+(fset 'god-mode-self-insert 'which-key--god-mode-self-insert-fix)
+
 (defun which-key--update ()
   "Function run by timer to possibly trigger `which-key--create-buffer-and-show'."
   (let ((prefix-keys (this-single-command-keys)))
@@ -2054,6 +2112,9 @@ Finally, show the buffer."
               (error (progn
                        (message "which-key error in key-chord handling")
                        [key-chord])))))
+    ;; If `god-local-mode', translate the `prefix-keys'.
+    (when (which-key--god-mode-self-insert-command-p)
+      (setq prefix-keys (which-key--translate-god-mode-key-vector prefix-keys)))
     (cond ((and (> (length prefix-keys) 0)
                 (or (keymapp (key-binding prefix-keys))
                     ;; Some keymaps are stored here like iso-transl-ctl-x-8-map
@@ -2067,7 +2128,8 @@ Finally, show the buffer."
                 ;; executed
                 (or (and which-key-allow-evil-operators
                          (bound-and-true-p evil-this-operator))
-                    (null this-command)))
+                    (null this-command)
+                    (which-key--god-mode-self-insert-command-p)))
            (which-key--create-buffer-and-show prefix-keys)
            (when which-key-idle-secondary-delay
              (which-key--start-timer which-key-idle-secondary-delay)))
