@@ -40,7 +40,6 @@
 
 (require 'cl-lib)
 (require 'button)
-(require 'god-mode nil t)
 
 ;; For compiler
 (defvar evil-operator-shortcut-map)
@@ -48,6 +47,10 @@
 (defvar evil-motion-state-map)
 (defvar golden-ratio-mode)
 (declare-function evil-get-command-property "ext:evil-common.el")
+(defvar god-mod-alist)
+(defvar god-literal-key)
+(defvar god-literal-sequence)
+(declare-function god-mode-lookup-key-sequence "ext:god-mode.el")
 
 (defgroup which-key nil
   "Customization options for which-key-mode"
@@ -430,6 +433,13 @@ ignored."
   :group 'which-key
   :type 'string)
 
+(defcustom which-key-enable-god-mode-support nil
+  "If non-nil, enable `god-mode' support.
+Note that the current implementation includes some dirty hacks
+for `god-mode'."
+  :group 'which-key
+  :type 'boolean)
+
 (defvar which-key-inhibit nil
   "Prevent which-key from popping up momentarily by setting this
 to a non-nil value for the execution of a command. Like this
@@ -525,6 +535,10 @@ alongside the actual current key sequence when
           (setq prefix-help-command #'which-key-C-h-dispatch))
         (when which-key-show-remaining-keys
           (add-hook 'pre-command-hook #'which-key--lighter-restore))
+        (when which-key-enable-god-mode-support
+          (ad-enable-advice 'god-mode-lookup-key-sequence
+                            'around 'which-key--god-mode-lookup-key-sequence)
+          (ad-activate 'god-mode-lookup-key-sequence))
         (add-hook 'pre-command-hook #'which-key--hide-popup)
         (add-hook 'focus-out-hook #'which-key--stop-timer)
         (add-hook 'focus-in-hook #'which-key--start-timer)
@@ -534,6 +548,10 @@ alongside the actual current key sequence when
       (setq prefix-help-command which-key--prefix-help-cmd-backup))
     (when which-key-show-remaining-keys
       (remove-hook 'pre-command-hook #'which-key--lighter-restore))
+    (when which-key-enable-god-mode-support
+      (ad-disable-advice 'god-mode-lookup-key-sequence
+                         'around 'which-key--god-mode-lookup-key-sequence)
+      (ad-activate 'god-mode-lookup-key-sequence))
     (remove-hook 'pre-command-hook #'which-key--hide-popup)
     (remove-hook 'focus-out-hook #'which-key--stop-timer)
     (remove-hook 'focus-in-hook #'which-key--start-timer)
@@ -2061,32 +2079,17 @@ Finally, show the buffer."
     (vconcat (and real-keys (kbd real-keys)))))
 
 (defun which-key--god-mode-self-insert-command-p ()
-  (and (bound-and-true-p god-local-mode)
+  (and which-key-enable-god-mode-support
+       (bound-and-true-p god-local-mode)
        (eq this-command 'god-mode-self-insert)))
 
-(defun which-key--god-mode-self-insert-fix ()
-  "Hide which-key popup before execuing the command.
-The code is almost the same as `god-mode-self-insert'."
-  (interactive)
-  (let* ((initial-key (aref (this-command-keys-vector)
-                            (- (length (this-command-keys-vector)) 1)))
-         binding)
-    (unwind-protect
-        (setq binding (god-mode-lookup-key-sequence initial-key))
-      (when (bound-and-true-p which-key-mode)
-        (which-key--hide-popup)))
-    (when (god-mode-upper-p initial-key)
-      (setq this-command-keys-shift-translated t))
-    (setq this-original-command binding)
-    (setq this-command binding)
-    ;; `real-this-command' is used by emacs to populate
-    ;; `last-repeatable-command', which is used by `repeat'.
-    (setq real-this-command binding)
-    (setq god-literal-sequence nil)
-    (if (commandp binding t)
-        (call-interactively binding)
-      (execute-kbd-macro binding))))
-(fset 'god-mode-self-insert 'which-key--god-mode-self-insert-fix)
+(defadvice god-mode-lookup-key-sequence
+    (around which-key--god-mode-lookup-key-sequence disable)
+  "Around advice for `god-mode-lookup-key-sequence'."
+  (unwind-protect
+      ad-do-it
+    (when (bound-and-true-p which-key-mode)
+      (which-key--hide-popup))))
 
 (defun which-key--update ()
   "Function run by timer to possibly trigger `which-key--create-buffer-and-show'."
