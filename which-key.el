@@ -47,6 +47,10 @@
 (defvar evil-motion-state-map)
 (defvar golden-ratio-mode)
 (declare-function evil-get-command-property "ext:evil-common.el")
+(defvar god-mod-alist)
+(defvar god-literal-key)
+(defvar god-literal-sequence)
+(declare-function god-mode-lookup-key-sequence "ext:god-mode.el")
 
 (defgroup which-key nil
   "Customization options for which-key-mode"
@@ -433,6 +437,13 @@ ignored."
   :group 'which-key
   :type 'string)
 
+(defcustom which-key-enable-god-mode-support nil
+  "If non-nil, enable `god-mode' support.
+Note that the current implementation includes some dirty hacks
+for `god-mode'."
+  :group 'which-key
+  :type 'boolean)
+
 (defvar which-key-inhibit nil
   "Prevent which-key from popping up momentarily by setting this
 to a non-nil value for the execution of a command. Like this
@@ -528,6 +539,10 @@ alongside the actual current key sequence when
           (setq prefix-help-command #'which-key-C-h-dispatch))
         (when which-key-show-remaining-keys
           (add-hook 'pre-command-hook #'which-key--lighter-restore))
+        (when which-key-enable-god-mode-support
+          (ad-enable-advice 'god-mode-lookup-key-sequence
+                            'around 'which-key--god-mode-lookup-key-sequence)
+          (ad-activate 'god-mode-lookup-key-sequence))
         (add-hook 'pre-command-hook #'which-key--hide-popup)
         (add-hook 'focus-out-hook #'which-key--stop-timer)
         (add-hook 'focus-in-hook #'which-key--start-timer)
@@ -537,6 +552,10 @@ alongside the actual current key sequence when
       (setq prefix-help-command which-key--prefix-help-cmd-backup))
     (when which-key-show-remaining-keys
       (remove-hook 'pre-command-hook #'which-key--lighter-restore))
+    (when which-key-enable-god-mode-support
+      (ad-disable-advice 'god-mode-lookup-key-sequence
+                         'around 'which-key--god-mode-lookup-key-sequence)
+      (ad-activate 'god-mode-lookup-key-sequence))
     (remove-hook 'pre-command-hook #'which-key--hide-popup)
     (remove-hook 'focus-out-hook #'which-key--stop-timer)
     (remove-hook 'focus-in-hook #'which-key--start-timer)
@@ -2034,6 +2053,48 @@ Finally, show the buffer."
                    (which-key--create-pages formatted-keys))
              (which-key--show-page 0)))))
 
+(defun which-key--translate-god-mode-key-vector (key-vector)
+  (let ((index 0) (key-consumed t) key modifier next-modifier real-keys)
+    (while (< index (length key-vector))
+      (setq key (format "%c" (elt key-vector index)))
+      (setq key-consumed nil)
+      (cond
+       ((stringp next-modifier)
+        (setq modifier next-modifier)
+        (unless (string= next-modifier "")
+          (setq next-modifier nil)))
+       ((string= key god-literal-key)
+        (setq key-consumed t)
+        (setq next-modifier ""))
+       ((and
+         (stringp key)
+         (not (eq nil (assoc key god-mod-alist)))
+         (not (eq nil key)))
+        (setq key-consumed t)
+        (setq next-modifier (cdr (assoc key god-mod-alist))))
+       (t
+        (setq modifier (cdr (assoc nil god-mod-alist)))))
+      (unless key-consumed
+        (setq real-keys
+              (if real-keys
+                  (concat real-keys " " modifier key)
+                (concat modifier key))))
+      (setq index (1+ index)))
+    (vconcat (and real-keys (kbd real-keys)))))
+
+(defun which-key--god-mode-self-insert-command-p ()
+  (and which-key-enable-god-mode-support
+       (bound-and-true-p god-local-mode)
+       (eq this-command 'god-mode-self-insert)))
+
+(defadvice god-mode-lookup-key-sequence
+    (around which-key--god-mode-lookup-key-sequence disable)
+  "Around advice for `god-mode-lookup-key-sequence'."
+  (unwind-protect
+      ad-do-it
+    (when (bound-and-true-p which-key-mode)
+      (which-key--hide-popup))))
+
 (defun which-key--update ()
   "Function run by timer to possibly trigger `which-key--create-buffer-and-show'."
   (let ((prefix-keys (this-single-command-keys)))
@@ -2058,6 +2119,9 @@ Finally, show the buffer."
               (error (progn
                        (message "which-key error in key-chord handling")
                        [key-chord])))))
+    ;; If `god-local-mode', translate the `prefix-keys'.
+    (when (which-key--god-mode-self-insert-command-p)
+      (setq prefix-keys (which-key--translate-god-mode-key-vector prefix-keys)))
     (cond ((and (> (length prefix-keys) 0)
                 (or (keymapp (key-binding prefix-keys))
                     ;; Some keymaps are stored here like iso-transl-ctl-x-8-map
@@ -2071,7 +2135,8 @@ Finally, show the buffer."
                 ;; executed
                 (or (and which-key-allow-evil-operators
                          (bound-and-true-p evil-this-operator))
-                    (null this-command)))
+                    (null this-command)
+                    (which-key--god-mode-self-insert-command-p)))
            (which-key--create-buffer-and-show prefix-keys)
            (when which-key-idle-secondary-delay
              (which-key--start-timer which-key-idle-secondary-delay)))
