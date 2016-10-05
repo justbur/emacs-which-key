@@ -1414,7 +1414,10 @@ alists. Returns a list (key separator description)."
                           ((pred symbolp) (copy-sequence (symbol-name binding)))
                           ((pred keymapp)
                            (or (copy-sequence (keymap-prompt binding))
-                               "Prefix Command"))))))
+                               "Prefix Command"))
+                          ((pred functionp)
+                           (or (copy-sequence (documentation binding))
+                               "Unknown function"))))))
           (which-key--get-raw-current-bindings
            (or prefix
                which-key--current-prefix))))
