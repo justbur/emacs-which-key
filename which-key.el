@@ -1399,10 +1399,7 @@ alists. Returns a list (key separator description)."
          bindings)
     (when (keymapp kbinding)
       (map-keymap (lambda (key binding)
-                    (let ((kdesc (key-description
-                                  (cond ((symbolp key) (vector key))
-                                        ((characterp key) (char-to-string key))
-                                        (t key)))))
+                    (let ((kdesc (key-description (vector key))))
                       (if binding (push (cons kdesc binding) bindings))))
                   kbinding)
       bindings)))
