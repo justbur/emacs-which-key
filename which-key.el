@@ -1391,6 +1391,10 @@ alists. Returns a list (key separator description)."
 
 
 (defun which-key--get-raw-current-bindings (&optional prefix)
+  "Get the current active bindings.
+
+Uses the optional PREFIX argument or the current which-key prefix
+to narrow down the bindings"
   (let* ((raw-prefix (or prefix which-key--current-prefix))
          (prefix (if (vectorp raw-prefix)
                      raw-prefix
@@ -1400,7 +1404,11 @@ alists. Returns a list (key separator description)."
     (when (keymapp kbinding)
       (map-keymap (lambda (key binding)
                     (let ((kdesc (key-description (vector key))))
-                      (if binding (push (cons kdesc binding) bindings))))
+                      ;; We're only interested in the first binding for a key
+                      ;; since that's what the 'real' key look up will use.
+                      (if (and binding
+                               (not (assoc kdesc bindings)))
+                          (push (cons kdesc binding) bindings))))
                   kbinding)
       bindings)))
 
