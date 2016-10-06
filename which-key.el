@@ -1404,20 +1404,31 @@ alists. Returns a list (key separator description)."
                   kbinding)
       bindings)))
 
+(defun which-key--get-raw-binding-desc (binding)
+  (pcase binding
+    ('nil nil)
+    (`(menu-item ,_ ,cmd . ,props)
+     (which-key--get-raw-binding-desc
+      (if-let (filter (plist-get props :filter))
+          (funcall filter nil)
+        cmd)))
+    ((pred symbolp) (copy-sequence (symbol-name binding)))
+    ((pred keymapp)
+     (or (copy-sequence (keymap-prompt binding))
+         "Prefix Command"))
+    ((pred functionp)
+     (or (documentation binding)
+         "??"))))
+
 (defun which-key--get-current-bindings (&optional prefix)
-  (mapcar (lambda (bindings)
-            (pcase-let ((`(,key . ,binding) bindings))
-              (cons key (pcase binding
-                          ((pred symbolp) (copy-sequence (symbol-name binding)))
-                          ((pred keymapp)
-                           (or (copy-sequence (keymap-prompt binding))
-                               "Prefix Command"))
-                          ((pred functionp)
-                           (or (copy-sequence (documentation binding))
-                               "Unknown function"))))))
-          (which-key--get-raw-current-bindings
-           (or prefix
-               which-key--current-prefix))))
+  (seq-filter 'identity
+              (mapcar (lambda (bindings)
+                        (pcase-let ((`(,key . ,binding) bindings))
+                          (let ((binding (which-key--get-raw-binding-desc binding)))
+                            (when binding
+                              (cons key binding)))))
+                      (which-key--get-raw-current-bindings
+                       (or prefix which-key--current-prefix)))))
 
 (defun which-key--get-formatted-key-bindings (&optional bindings)
   "Uses `describe-buffer-bindings' to collect the key bindings in
