@@ -1399,7 +1399,7 @@ alists. Returns a list (key separator description)."
                       (if (and binding
                                (not (assoc kdesc bindings)))
                           (push (cons kdesc binding) bindings))))
-                  raw-bindings)
+                  keymap)
       bindings)))
 
 (defun which-key--get-raw-current-bindings (&optional prefix)
