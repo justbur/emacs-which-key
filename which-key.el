@@ -1413,6 +1413,42 @@ to narrow down the bindings"
                    (kbd raw-prefix))))
     (which-key--canonicalize-bindings (key-binding prefix))))
 
+(defun which-key--simplify-base-binding (binding)
+  "Simplify a binding form."
+  (pcase binding
+    ((pred symbolp) binding)
+    (`(,(and (pred stringp)
+             desc)
+       ,(and (pred stringp)
+             help-str)
+       . ,bound)
+     (if (or (listp bound) (symbolp bound))
+         `(menu-item ,desc ,bound :help ,help-str)))
+
+    (`(,(and (pred stringp) desc)
+       . ,bound)
+     (if (or (listp bound) (symbolp bound))
+         `(menu-item ,desc ,bound)))))
+
+
+(defun which-key--describe-basic-binding (binding)
+  (pcase binding
+    ((pred symbolp)
+     (copy-sequence (symbol-name binding)))
+    ((pred keymapp)
+     (or (copy-sequence (keymap-prompt binding))
+         "Prefix Command"))
+    (`(menu-item . ,_)
+     (which-key--describe-menu-item binding))))
+
+(defun which-key--describe-menu-item (menu-item)
+  (pcase-let ((`(menu-item ,desc ,default-binding . ,props) menu-item))
+    (eval
+     (cond ((plist-get props :enable)
+            (if (eval (plist-get props :enable))
+                desc))
+           (t desc)))))
+
 
 (defun which-key--get-raw-binding-desc (binding)
   (pcase binding
