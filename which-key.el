@@ -1416,7 +1416,10 @@ to narrow down the bindings"
 (defun which-key--simplify-base-binding (binding)
   "Simplify a binding form."
   (pcase binding
-    ((pred symbolp) binding)
+    ((or (pred functionp)
+         (pred symbolp)
+         (pred keymapp)) binding)
+    (`(menu-item ,_ ,_ . ,_) binding)
     (`(,(and (pred stringp)
              desc)
        ,(and (pred stringp)
@@ -1428,27 +1431,33 @@ to narrow down the bindings"
     (`(,(and (pred stringp) desc)
        . ,bound)
      (if (or (listp bound) (symbolp bound))
-         `(menu-item ,desc ,bound)))))
+         `(menu-item ,desc ,bound)))
+    ))
 
 
 (defun which-key--describe-basic-binding (binding)
-  (pcase binding
-    ((pred symbolp)
-     (copy-sequence (symbol-name binding)))
-    ((pred keymapp)
-     (or (copy-sequence (keymap-prompt binding))
-         "Prefix Command"))
-    (`(menu-item . ,_)
-     (which-key--describe-menu-item binding))))
+  (let ((binding (which-key--simplify-base-binding binding)))
+    (pcase binding
+      ((pred symbolp)
+       (copy-sequence (symbol-name binding)))
+      ((pred keymapp)
+       (or (copy-sequence (keymap-prompt binding))
+           "Prefix Command"))
+      ((pred functionp)
+       (or (copy-sequence (documentation binding))
+           "??"))
+      (`(menu-item . ,_)
+       (which-key--describe-menu-item binding)))))
 
 (defun which-key--describe-menu-item (menu-item)
   (pcase-let ((`(menu-item ,desc ,default-binding . ,props) menu-item))
-    (eval
-     (cond ((plist-get props :enable)
-            (if (eval (plist-get props :enable))
-                desc))
-           (t desc)))))
-
+    (cond ((plist-member props :filter)
+           (let ((map-desc (which-key--describe-basic-binding
+                            (funcall (plist-get props :filter) default-binding))))
+             (if (equal map-desc "??")
+                 (eval desc)
+               map-desc)))
+          (t (eval desc)))))
 
 (defun which-key--get-raw-binding-desc (binding)
   (pcase binding
