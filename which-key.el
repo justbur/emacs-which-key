@@ -1381,7 +1381,8 @@ alists. Returns a list (key separator description)."
        (unless (and (functionp filter) (funcall filter ev def))
          (cl-pushnew
           (cons (key-description (list ev))
-                (cond ((keymapp def) "Prefix Command")
+                (cond ((vectorp def) (copy-sequence (key-description def)))
+                      ((keymapp def) "Prefix Command")
                       ((symbolp def) (copy-sequence (symbol-name def)))
                       ((eq 'lambda (car-safe def)) "lambda")
                       (t (format "%s" def))))
@@ -1391,18 +1392,27 @@ alists. Returns a list (key separator description)."
 
 (defun which-key--canonicalize-bindings (keymap)
   (when (keymapp keymap)
-    (let (bindings)
-      (map-keymap (lambda (key binding)
-                    (let ((kdesc (key-description (vector key))))
-                      ;; We're only interested in the first binding for a key
-                      ;; since that's what the 'real' key look up will use.
-                      (if (and binding
-                               (not (assoc kdesc bindings)))
-                          (push (cons kdesc binding) bindings))))
-                  keymap)
+    (let ((ignore-bindings '(self-insert-command ignore ignore-event company-ignore))
+          (ignore-keys-regexp "mouse-\\|wheel-\\|remap\\|drag-\\|scroll-bar\\|select-window\\|switch-frame\\|-state")
+          bindings)
+      (map-keymap
+       (lambda (key binding)
+         (let ((kdesc (key-description (vector key))))
+           ;; We're only interested in the first binding for a key
+           ;; since that's what the 'real' key look up will use.
+           (when (and binding
+                      (not (member binding ignore-bindings))
+                      (not (string-match-p ignore-keys-regexp kdesc)))
+             (let ((binding-desc (which-key--get-raw-binding-desc binding)))
+                 (if binding-desc
+                     (cl-pushnew
+                      (cons kdesc binding-desc)
+                      bindings
+                      :test (lambda (a b) (string= (car a) (car b)))))))))
+       keymap)
       bindings)))
 
-(defun which-key--get-raw-current-bindings (&optional prefix)
+(defun which-key--get-current-bindings (&optional prefix)
   "Get the current active bindings.
 
 Uses the optional PREFIX argument or the current which-key prefix
@@ -1410,8 +1420,14 @@ to narrow down the bindings"
   (let* ((raw-prefix (or prefix which-key--current-prefix))
          (prefix (if (vectorp raw-prefix)
                      raw-prefix
-                   (kbd raw-prefix))))
-    (which-key--canonicalize-bindings (key-binding prefix))))
+                   (kbd raw-prefix)))
+         (prefix-bindings (key-binding prefix)))
+    (which-key--canonicalize-bindings
+     (if (not (and prefix-bindings (symbolp prefix-bindings)))
+         (make-composed-keymap (lookup-key key-translation-map prefix)
+                               prefix-bindings)
+       prefix-bindings))))
+
 
 (defun which-key--simplify-base-binding (binding)
   "Simplify a binding form."
@@ -1431,11 +1447,9 @@ to narrow down the bindings"
     (`(,(and (pred stringp) desc)
        . ,bound)
      (if (or (listp bound) (symbolp bound))
-         `(menu-item ,desc ,bound)))
-    ))
+         `(menu-item ,desc ,bound)))))
 
-
-(defun which-key--describe-basic-binding (binding)
+(defun which-key--describe-binding (binding)
   (let ((binding (which-key--simplify-base-binding binding)))
     (pcase binding
       ((pred symbolp)
@@ -1444,16 +1458,17 @@ to narrow down the bindings"
        (or (copy-sequence (keymap-prompt binding))
            "Prefix Command"))
       ((pred functionp)
-       (if-let (doc (documentation binding))
-           (substring doc 0 (string-match "\n" doc))
-         "??"))
+       (let ((doc (documentation binding)))
+           (if doc
+               (substring doc 0 (string-match "\n" doc))
+             "??")))
       (`(menu-item . ,_)
        (which-key--describe-menu-item binding)))))
 
 (defun which-key--describe-menu-item (menu-item)
   (pcase-let ((`(menu-item ,desc ,default-binding . ,props) menu-item))
     (cond ((plist-member props :filter)
-           (let ((map-desc (which-key--describe-basic-binding
+           (let ((map-desc (which-key--describe-binding
                             (funcall (plist-get props :filter) default-binding))))
              (if (equal map-desc "??")
                  (eval desc)
@@ -1465,9 +1480,10 @@ to narrow down the bindings"
     ('nil nil)
     (`(menu-item ,_ ,cmd . ,props)
      (which-key--get-raw-binding-desc
-      (if-let (filter (plist-get props :filter))
-          (funcall filter nil)
+      (let ((filter (plist-get props :filter)))
+        (if filter (funcall filter nil))
         cmd)))
+    ((pred vectorp) (copy-sequence (key-description binding)))
     ((pred symbolp) (copy-sequence (symbol-name binding)))
     ((pred keymapp)
      (or (copy-sequence (keymap-prompt binding))
@@ -1475,16 +1491,6 @@ to narrow down the bindings"
     ((pred functionp)
      (or (documentation binding)
          "??"))))
-
-(defun which-key--get-current-bindings (&optional prefix)
-  (seq-filter 'identity
-              (mapcar (lambda (bindings)
-                        (pcase-let ((`(,key . ,binding) bindings))
-                          (let ((binding (which-key--get-raw-binding-desc binding)))
-                            (when binding
-                              (cons key binding)))))
-                      (which-key--get-raw-current-bindings
-                       (or prefix which-key--current-prefix)))))
 
 (defun which-key--get-formatted-key-bindings (&optional bindings)
   "Uses `describe-buffer-bindings' to collect the key bindings in
