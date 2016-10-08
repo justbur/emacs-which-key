@@ -1444,8 +1444,9 @@ to narrow down the bindings"
        (or (copy-sequence (keymap-prompt binding))
            "Prefix Command"))
       ((pred functionp)
-       (or (copy-sequence (documentation binding))
-           "??"))
+       (if-let (doc (documentation binding))
+           (substring doc 0 (string-match "\n" doc))
+         "??"))
       (`(menu-item . ,_)
        (which-key--describe-menu-item binding)))))
 

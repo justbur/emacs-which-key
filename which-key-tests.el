@@ -160,7 +160,22 @@ a list"
                  "inner-desc")))
 
 
+(ert-deftest which-key-test-describe-lambda-without-docstr ()
+  (should (equal (which-key--describe-basic-binding
+                  (lambda ()
+                    (interactive)))
+                 "??")))
 
+(ert-deftest which-key-test-describe-lambda-with-long-docstr ()
+  (should (equal (which-key--describe-basic-binding
+                  (lambda ()
+                    "desc
+
+With a bunch of extended documentatation"
+                    (interactive)))
+                 "desc")))
+
+(ert-deftest )
 
 
 
