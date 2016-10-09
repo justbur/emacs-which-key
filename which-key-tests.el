@@ -157,7 +157,7 @@ a list"
   (should (equal (which-key--describe-binding
                   (lambda ()
                     (interactive)))
-                 "??")))
+                 "lambda")))
 
 (ert-deftest which-key-test-describe-lambda-with-long-docstr ()
   (should (equal (which-key--describe-binding

@@ -1,6 +1,6 @@
 ;;; which-key.el --- Display available keybindings in popup  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015 Justin Burkett
+;; Copyrght (C) 2015 Justin Burkett
 
 ;; Author: Justin Burkett <justin@burkett.cc>
 ;; URL: https://github.com/justbur/emacs-which-key
@@ -1403,7 +1403,7 @@ alists. Returns a list (key separator description)."
            (when (and binding
                       (not (member binding ignore-bindings))
                       (not (string-match-p ignore-keys-regexp kdesc)))
-             (let ((binding-desc (which-key--get-raw-binding-desc binding)))
+             (let ((binding-desc (which-key--describe-binding binding)))
                  (if binding-desc
                      (cl-pushnew
                       (cons kdesc binding-desc)
@@ -1461,7 +1461,7 @@ to narrow down the bindings"
        (let ((doc (documentation binding)))
            (if doc
                (substring doc 0 (string-match "\n" doc))
-             "??")))
+             "lambda")))
       (`(menu-item . ,_)
        (which-key--describe-menu-item binding)))))
 
@@ -1474,23 +1474,6 @@ to narrow down the bindings"
                  (eval desc)
                map-desc)))
           (t (eval desc)))))
-
-(defun which-key--get-raw-binding-desc (binding)
-  (pcase binding
-    ('nil nil)
-    (`(menu-item ,_ ,cmd . ,props)
-     (which-key--get-raw-binding-desc
-      (let ((filter (plist-get props :filter)))
-        (if filter (funcall filter nil))
-        cmd)))
-    ((pred vectorp) (copy-sequence (key-description binding)))
-    ((pred symbolp) (copy-sequence (symbol-name binding)))
-    ((pred keymapp)
-     (or (copy-sequence (keymap-prompt binding))
-         "Prefix Command"))
-    ((pred functionp)
-     (or (documentation binding)
-         "??"))))
 
 (defun which-key--get-formatted-key-bindings (&optional bindings)
   "Uses `describe-buffer-bindings' to collect the key bindings in
