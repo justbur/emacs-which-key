@@ -1470,7 +1470,7 @@ to narrow down the bindings"
     (cond ((plist-member props :filter)
            (let ((map-desc (which-key--describe-binding
                             (funcall (plist-get props :filter) default-binding))))
-             (if (equal map-desc "??")
+             (if (equal map-desc "lambda")
                  (eval desc)
                map-desc)))
           (t (eval desc)))))
