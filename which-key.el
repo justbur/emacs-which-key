@@ -1390,7 +1390,7 @@ alists. Returns a list (key separator description)."
      keymap)
     bindings))
 
-(defun which-key--canonicalize-bindings (keymap)
+(defun which-key--describe-immediate-bindings (keymap)
   (when (keymapp keymap)
     (let ((ignore-bindings '(self-insert-command ignore ignore-event company-ignore))
           (ignore-keys-regexp "mouse-\\|wheel-\\|remap\\|drag-\\|scroll-bar\\|select-window\\|switch-frame\\|-state")
@@ -1422,7 +1422,7 @@ to narrow down the bindings"
                      raw-prefix
                    (kbd raw-prefix)))
          (prefix-bindings (key-binding prefix)))
-    (which-key--canonicalize-bindings
+    (which-key--describe-immediate-bindings
      (if (not (and prefix-bindings (symbolp prefix-bindings)))
          (make-composed-keymap (lookup-key key-translation-map prefix)
                                prefix-bindings)

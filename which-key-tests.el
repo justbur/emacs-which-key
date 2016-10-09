@@ -51,7 +51,7 @@
   (let ((our-map '(keymap (?a . first-match)
                            (keymap (?a . second-match)))))
     (should (equal
-             (which-key--canonicalize-bindings our-map)
+             (which-key--describe-immediate-bindings our-map)
              '(("a" . "first-match"))))))
 
 
