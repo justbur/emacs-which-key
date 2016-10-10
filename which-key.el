@@ -1443,11 +1443,12 @@ to narrow down the bindings"
          (prefix (if (vectorp raw-prefix)
                      raw-prefix
                    (kbd raw-prefix)))
-         (prefix-bindings (key-binding prefix)))
+         (prefix-bindings (key-binding prefix))
+         (translations (lookup-key key-translation-map prefix))
+         (translations (if (listp translations) translations)))
     (which-key--describe-immediate-bindings
      (if (not (and prefix-bindings (symbolp prefix-bindings)))
-         (make-composed-keymap (lookup-key key-translation-map prefix)
-                               prefix-bindings)
+         (make-composed-keymap translations prefix-bindings)
        prefix-bindings))))
 
 
