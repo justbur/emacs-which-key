@@ -198,5 +198,9 @@ With a bunch of extended documentatation"
                     (interactive)))
                  "desc")))
 
+(ert-deftest which-key-test-describe-translation ()
+  (should (equal (which-key--describe-binding [?¤])
+                 "¤")))
+
 (provide 'which-key-tests)
 ;;; which-key-tests.el ends here

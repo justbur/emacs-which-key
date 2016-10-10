@@ -1457,7 +1457,8 @@ to narrow down the bindings"
   (pcase binding
     ((or (pred functionp)
          (pred symbolp)
-         (pred keymapp)) binding)
+         (pred keymapp)
+         (pred vectorp)) binding)
     (`(menu-item ,_ ,_ . ,_) binding)
     (`(,(and (pred stringp)
              desc)
@@ -1466,7 +1467,6 @@ to narrow down the bindings"
        . ,bound)
      (if (or (listp bound) (symbolp bound))
          `(menu-item ,desc ,bound :help ,help-str)))
-
     (`(,(and (pred stringp) desc)
        . ,bound)
      (if (or (listp bound) (symbolp bound))
@@ -1486,7 +1486,10 @@ to narrow down the bindings"
                (substring doc 0 (string-match "\n" doc))
              "lambda")))
       (`(menu-item . ,_)
-       (which-key--describe-menu-item binding)))))
+       (which-key--describe-menu-item binding))
+      ((pred vectorp)
+       (key-description binding)))))
+
 
 (defun which-key--describe-menu-item (menu-item)
   (pcase-let ((`(menu-item ,desc ,default-binding . ,props) menu-item))
