@@ -54,6 +54,23 @@
              (which-key--describe-immediate-bindings our-map)
              '(("a" . "first-match"))))))
 
+(ert-deftest which-key-test-esc-maps ()
+  (let ((our-map '(keymap (27 .
+                              (keymap (?a . command-a)
+                                      (?b . command-b)
+                                      (27 . double-escape)))))
+        (pred (lambda (a b)
+                (string-lessp (car a)
+                              (car b)))))
+
+    (should
+     (equal (reverse (which-key--describe-immediate-bindings our-map))
+            '(("M-a" . "command-a")
+              ("M-b" . "command-b")
+              ("ESC ESC" . "double-escape"))))))
+
+
+
 
 (ert-deftest which-key-test-simplify-base-binding-plain-symbol ()
   "Given a binding, which--key-simpify-base-binding should return a symbol or
