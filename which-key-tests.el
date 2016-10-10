@@ -70,6 +70,19 @@
               ("ESC ESC" . "double-escape"))))))
 
 
+(ert-deftest which-key-test-fancy-descriptions ()
+  ;; menu items and lexical scope get a bit weird...
+  (put 'which-key-test--our-toggle 'is-on nil)
+  (let ((our-map '(keymap (?a menu-item (if (get 'which-key-test--our-toggle 'is-on)
+                                             "[*] toggle"
+                                           "[ ] toggle")
+                               menu-command))))
+    (should (equal (which-key--describe-immediate-bindings our-map)
+                   '(("a" . "[ ] toggle"))))
+    (put 'which-key-test--our-toggle 'is-on t)
+    (should (equal (which-key--describe-immediate-bindings our-map)
+                   '(("a" . "[*] toggle"))))
+    ))
 
 
 (ert-deftest which-key-test-simplify-base-binding-plain-symbol ()
