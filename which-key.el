@@ -1,6 +1,6 @@
 ;;; which-key.el --- Display available keybindings in popup  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015 Justin Burkett
+;; Copyrght (C) 2015 Justin Burkett
 
 ;; Author: Justin Burkett <justin@burkett.cc>
 ;; URL: https://github.com/justbur/emacs-which-key
@@ -992,11 +992,11 @@ call signature in different emacs versions"
      ((eq which-key--multiple-locations t)
       ;; possibly want to switch sides in this case so we can't reuse the window
       (delete-windows-on which-key--buffer)
-      (display-buffer-in-major-side-window which-key--buffer side 0 alist))
+      (window--make-major-side-window which-key--buffer side 0 alist))
      ((get-buffer-window which-key--buffer)
       (display-buffer-reuse-window which-key--buffer alist))
      (t
-      (display-buffer-in-major-side-window which-key--buffer side 0 alist)))))
+      (window--make-major-side-window which-key--buffer side 0 alist)))))
 
 (defun which-key--show-buffer-frame (act-popup-dim)
   "Show which-key buffer when popup type is frame."
@@ -1418,7 +1418,8 @@ alists. Returns a list (key separator description)."
        (unless (and (functionp filter) (funcall filter ev def))
          (cl-pushnew
           (cons (key-description (list ev))
-                (cond ((keymapp def) "Prefix Command")
+                (cond ((vectorp def) (copy-sequence (key-description def)))
+                      ((keymapp def) "Prefix Command")
                       ((symbolp def) (copy-sequence (symbol-name def)))
                       ((eq 'lambda (car-safe def)) "lambda")
                       (t (format "%s" def))))
@@ -1426,72 +1427,116 @@ alists. Returns a list (key separator description)."
      keymap)
     bindings))
 
-;; adapted from helm-descbinds
-(defun which-key--get-current-bindings ()
-  (let ((key-str-qt (regexp-quote (key-description which-key--current-prefix)))
-        (buffer (current-buffer))
-        (ignore-bindings '("self-insert-command" "ignore" "ignore-event" "company-ignore"))
-        (ignore-keys-regexp "mouse-\\|wheel-\\|remap\\|drag-\\|scroll-bar\\|select-window\\|switch-frame\\|-state")
-        (ignore-sections-regexp "\\(Key translations\\|Function key map translations\\|Input decoding map translations\\)"))
-    (with-temp-buffer
-      (setq-local indent-tabs-mode t)
-      (setq-local tab-width 8)
-      (describe-buffer-bindings buffer which-key--current-prefix)
-      (goto-char (point-min))
-      (let ((header-p (not (= (char-after) ?\f)))
-            bindings header)
-        (while (not (eobp))
-          (cond
-           (header-p
-            (setq header (buffer-substring-no-properties
-                          (point)
-                          (line-end-position)))
-            (setq header-p nil)
-            (forward-line 3))
-           ((= (char-after) ?\f)
-            ;; (push (cons header (nreverse section)) bindings)
-            ;; (setq section nil)
-            (setq header-p t))
-           ((looking-at "^[ \t]*$")
-            ;; ignore
-            )
-           ((or (not (string-match-p ignore-sections-regexp header))
-                which-key--current-prefix)
-            (let ((binding-start (save-excursion
-                                   (and (re-search-forward "\t+" nil t)
-                                        (match-end 0))))
-                  key binding)
-              (when binding-start
-                (setq key (buffer-substring-no-properties (point) binding-start)
-                      ;; key (replace-regexp-in-string"^[ \t\n]+" "" key)
-                      ;; key (replace-regexp-in-string"[ \t\n]+$" "" key)
-                      )
-                (setq binding (buffer-substring-no-properties
-                               binding-start
-                               (line-end-position)))
-                (save-match-data
-                  (cond
-                   ((member binding ignore-bindings))
-                   ((string-match-p ignore-keys-regexp key))
-                   ((and which-key--current-prefix
-                         (string-match (format "^%s[ \t]\\([^ \t]+\\)[ \t]+$"
-                                               key-str-qt) key))
-                    (unless (assoc-string (match-string 1 key) bindings)
-                      (push (cons (match-string 1 key) binding) bindings)))
-                   ((and which-key--current-prefix
-                         (string-match
-                          (format
-                           "^%s[ \t]\\([^ \t]+\\) \\.\\. %s[ \t]\\([^ \t]+\\)[ \t]+$"
-                           key-str-qt key-str-qt) key))
-                    (let ((stripped-key
-                           (concat (match-string 1 key) " \.\. " (match-string 2 key))))
-                      (unless (assoc-string stripped-key bindings)
-                        (push (cons stripped-key binding) bindings))))
-                   ((string-match "^\\([^ \t]+\\|[^ \t]+ \\.\\. [^ \t]+\\)[ \t]+$" key)
-                    (unless (assoc-string (match-string 1 key) bindings)
-                      (push (cons (match-string 1 key) binding) bindings)))))))))
-          (forward-line))
-        (nreverse bindings)))))
+(defun which-key--describe-immediate-bindings (keymap)
+  (when (keymapp keymap)
+    (let ((ignore-bindings '(self-insert-command ignore ignore-event company-ignore))
+          (ignore-keys-regexp "mouse-\\|wheel-\\|remap\\|drag-\\|scroll-bar\\|select-window\\|switch-frame\\|-state")
+          bindings)
+      (cl-flet* ((push-test (a b)
+                   (and (string= (car a) (car b))))
+                 (interestingp (desc binding)
+                   (and binding
+                        (not (member binding ignore-bindings))
+                        (not (string-match-p ignore-keys-regexp desc))))
+                 (describe-ESC-map (key binding)
+                   (if (keymapp binding)
+                       (map-keymap
+                        (lambda (key binding)
+                          (let ((kdesc (key-description (vector 27 key))))
+                            (when (interestingp kdesc binding)
+                              (let ((binding-desc (which-key--describe-binding binding)))
+                                (when binding-desc
+                                  (cl-pushnew
+                                   (cons kdesc binding-desc)
+                                   bindings
+                                   :test #'push-test))))))
+                        binding)
+                     (cl-pushnew (cons "ESC" (which-key--describe-binding binding))
+                                 bindings
+                                 :test #'push-test))))
+        (map-keymap
+         (lambda (key binding)
+           (if (and (numberp key) (= key 27))
+               (describe-ESC-map key binding)
+             (let ((kdesc (key-description (vector key))))
+               ;; We're only interested in the first binding for a key
+               ;; since that's what the 'real' key look up will use.
+               (when (interestingp kdesc binding)
+                 (let ((binding-desc (which-key--describe-binding binding)))
+                   (if binding-desc
+                       (cl-pushnew
+                        (cons kdesc binding-desc)
+                        bindings
+                        :test #'push-test)))))))
+         keymap))
+      bindings)))
+
+(defun which-key--get-current-bindings (&optional prefix)
+  "Get the current active bindings.
+
+Uses the optional PREFIX argument or the current which-key prefix
+to narrow down the bindings"
+  (let* ((raw-prefix (or prefix which-key--current-prefix))
+         (prefix (if (vectorp raw-prefix)
+                     raw-prefix
+                   (kbd raw-prefix)))
+         (prefix-bindings (key-binding prefix))
+         (translations (lookup-key key-translation-map prefix))
+         (translations (if (listp translations) translations)))
+    (which-key--describe-immediate-bindings
+     (if (not (and prefix-bindings (symbolp prefix-bindings)))
+         (make-composed-keymap translations prefix-bindings)
+       prefix-bindings))))
+
+
+(defun which-key--simplify-base-binding (binding)
+  "Simplify a binding form."
+  (pcase binding
+    ((or (pred functionp)
+         (pred symbolp)
+         (pred keymapp)
+         (pred vectorp)) binding)
+    (`(menu-item ,_ ,_ . ,_) binding)
+    (`(,(and (pred stringp)
+             desc)
+       ,(and (pred stringp)
+             help-str)
+       . ,bound)
+     (if (or (listp bound) (symbolp bound))
+         `(menu-item ,desc ,bound :help ,help-str)))
+    (`(,(and (pred stringp) desc)
+       . ,bound)
+     (if (or (listp bound) (symbolp bound))
+         `(menu-item ,desc ,bound)))))
+
+(defun which-key--describe-binding (binding)
+  (let ((binding (which-key--simplify-base-binding binding)))
+    (pcase binding
+      ((pred symbolp)
+       (copy-sequence (symbol-name binding)))
+      ((pred keymapp)
+       (or (copy-sequence (keymap-prompt binding))
+           "Prefix Command"))
+      ((pred functionp)
+       (let ((doc (documentation binding)))
+           (if doc
+               (substring doc 0 (string-match "\n" doc))
+             "lambda")))
+      (`(menu-item . ,_)
+       (which-key--describe-menu-item binding))
+      ((pred vectorp)
+       (key-description binding)))))
+
+
+(defun which-key--describe-menu-item (menu-item)
+  (pcase-let ((`(menu-item ,desc ,default-binding . ,props) menu-item))
+    (cond ((plist-member props :filter)
+           (let ((map-desc (which-key--describe-binding
+                            (funcall (plist-get props :filter) default-binding))))
+             (if (equal map-desc "lambda")
+                 (eval desc)
+               map-desc)))
+          (t (eval desc)))))
 
 (defun which-key--get-formatted-key-bindings (&optional bindings)
   "Uses `describe-buffer-bindings' to collect the key bindings in

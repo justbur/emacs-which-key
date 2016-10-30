@@ -21,11 +21,12 @@
 ;;; Commentary:
 
 ;; Tests for which-key.el
-
 ;;; Code:
 
 (require 'which-key)
 (require 'ert)
+
+;; For some reason I'm not seeing ert-deftest in an interactive session
 
 (ert-deftest which-key-test-prefix-declaration ()
   "Test `which-key-declare-prefixes' and
@@ -44,6 +45,162 @@
              (assoc-string
               "C-c C-c" (cdr (assq 'test-mode which-key-key-based-description-replacement-alist)))
              '("C-c C-c" . ("complete" . "complete title"))))))
+
+(ert-deftest which-key-test-duplicate-key-elimination ()
+  "Make sure we eliminate shadowed keys from our current keymap"
+  (let ((our-map '(keymap (?a . first-match)
+                           (keymap (?a . second-match)))))
+    (should (equal
+             (which-key--describe-immediate-bindings our-map)
+             '(("a" . "first-match"))))))
+
+(ert-deftest which-key-test-esc-maps ()
+  (let ((our-map '(keymap (27 .
+                              (keymap (?a . command-a)
+                                      (?b . command-b)
+                                      (27 . double-escape)))))
+        (pred (lambda (a b)
+                (string-lessp (car a)
+                              (car b)))))
+
+    (should
+     (equal (reverse (which-key--describe-immediate-bindings our-map))
+            '(("M-a" . "command-a")
+              ("M-b" . "command-b")
+              ("ESC ESC" . "double-escape"))))))
+
+
+(ert-deftest which-key-test-fancy-descriptions ()
+  ;; menu items and lexical scope get a bit weird...
+  (put 'which-key-test--our-toggle 'is-on nil)
+  (let ((our-map '(keymap (?a menu-item (if (get 'which-key-test--our-toggle 'is-on)
+                                             "[*] toggle"
+                                           "[ ] toggle")
+                               menu-command))))
+    (should (equal (which-key--describe-immediate-bindings our-map)
+                   '(("a" . "[ ] toggle"))))
+    (put 'which-key-test--our-toggle 'is-on t)
+    (should (equal (which-key--describe-immediate-bindings our-map)
+                   '(("a" . "[*] toggle"))))
+    ))
+
+
+(ert-deftest which-key-test-simplify-base-binding-plain-symbol ()
+  "Given a binding, which--key-simpify-base-binding should return a symbol or
+a list"
+  (should (equal (which-key--simplify-base-binding 'symbol)
+              'symbol)))
+
+(ert-deftest which-key-test-simplify-base-binding-simple-menu-item-with-help ()
+  "An old 'simple' menu item with help maps to an appropriate (menu-item ...)"
+  (should
+   (equal (which-key--simplify-base-binding '("desc" "help string" .
+                                              (keymap (f1 . help-command))))
+          '(menu-item "desc" (keymap (f1 . help-command))
+                      :help "help string"))))
+
+(ert-deftest which-key-test-simplify-base-binding-simple-menu-item-without-help ()
+  (should (equal (which-key--simplify-base-binding '("desc" . 'symbol))
+                 '(menu-item "desc" 'symbol))))
+
+
+(ert-deftest which-key-test-describe-binding-for-simple-cases ()
+  (should (equal (which-key--describe-binding 'symbol)
+                 "symbol"))
+  (should (equal (which-key--describe-binding '(keymap (1 . foo)))
+                 "Prefix Command"))
+  (should (equal (which-key--describe-binding '(keymap "desc" (1 . foo)))
+                 "desc")))
+
+(ert-deftest which-key-test-describe-menu-item-0 ()
+  (should (equal (which-key--describe-binding '(menu-item "desc" foo))
+                 "desc")))
+
+(ert-deftest which-key-test-describe-menu-item-1 ()
+  (should (equal (which-key--describe-binding '(menu-item "desc" symbol :help "help"))
+                 "desc")))
+
+(ert-deftest which-key-test-describe-menu-item-2 ()
+  (should (equal (which-key--describe-binding '(menu-item (or nil "desc") cmd))
+                 "desc"))
+  (should (equal (which-key--describe-binding
+                  '(menu-item "desc" cmd
+                              :enable (or nil t)))
+                 "desc")))
+
+;; We're following whether these affect the keybinding; it may be that we'd
+;; like :visible to affect which-key's hinting. Should probably be an option,
+;; I supppose.
+(ert-deftest which-key-test-describe-menu-item-visible-is-ignored ()
+  "It seems that the :visible test is ignored except when building menus"
+  (should (equal (which-key--describe-binding
+                  '(menu-item "desc" cmd
+                              :visible nil))
+                 "desc")))
+
+;;; Same issues as for :visible
+(ert-deftest which-key-test-describe-enable-is-ignored ()
+  "And the same for :enable"
+  (should (equal (which-key--describe-binding
+                  '(menu-item "desc" cmd
+                              :enable (or nil nil)))
+                 "desc")))
+
+(ert-deftest which-key-test-describe-menu-item-4 ()
+  (should (equal (which-key--describe-binding
+                  '(menu-item "desc" cmd
+                              :filter (lambda (_)
+                                        'newline-and-indent)))
+                 "newline-and-indent")))
+
+
+(ert-deftest which-key-test-describe-menu-item-5 ()
+  (should (equal (which-key--describe-binding
+                  '(menu-item "desc" cmd
+                              :filter (lambda (_)
+                                        (lambda ()
+                                          (interactive)
+                                          (newline-and-indent)))))
+
+                 "desc")))
+
+(ert-deftest which-key-test-describe-menu-item-4 ()
+  (should (equal (which-key--describe-binding
+                  '(menu-item "desc" cmd
+                              :filter (lambda (_)
+                                        (lambda ()
+                                          "inner-desc"
+                                          (newline-and-indent)))))
+                 "inner-desc")))
+
+
+
+(ert-deftest which-key-test-describe-menu-item-5 ()
+  (should (equal (which-key--describe-binding
+                  '(menu-item "desc" cmd
+                              :filter (lambda (_)
+                                        '("inner-desc" . 'newline-and-indent))))
+                 "inner-desc")))
+
+
+(ert-deftest which-key-test-describe-lambda-without-docstr ()
+  (should (equal (which-key--describe-binding
+                  (lambda ()
+                    (interactive)))
+                 "lambda")))
+
+(ert-deftest which-key-test-describe-lambda-with-long-docstr ()
+  (should (equal (which-key--describe-binding
+                  (lambda ()
+                    "desc
+
+With a bunch of extended documentatation"
+                    (interactive)))
+                 "desc")))
+
+(ert-deftest which-key-test-describe-translation ()
+  (should (equal (which-key--describe-binding [?¤])
+                 "¤")))
 
 (provide 'which-key-tests)
 ;;; which-key-tests.el ends here
