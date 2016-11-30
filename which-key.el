@@ -1486,72 +1486,56 @@ alists. Returns a list (key separator description)."
      keymap)
     bindings))
 
-;; adapted from helm-descbinds
-(defun which-key--get-current-bindings ()
-  (let ((key-str-qt (regexp-quote (key-description which-key--current-prefix)))
-        (buffer (current-buffer))
-        (ignore-bindings '("self-insert-command" "ignore" "ignore-event" "company-ignore"))
-        (ignore-keys-regexp "mouse-\\|wheel-\\|remap\\|drag-\\|scroll-bar\\|select-window\\|switch-frame\\|-state")
-        (ignore-sections-regexp "\\(Key translations\\|Function key map translations\\|Input decoding map translations\\)"))
-    (with-temp-buffer
-      (setq-local indent-tabs-mode t)
-      (setq-local tab-width 8)
-      (describe-buffer-bindings buffer which-key--current-prefix)
-      (goto-char (point-min))
-      (let ((header-p (not (= (char-after) ?\f)))
-            bindings header)
-        (while (not (eobp))
-          (cond
-           (header-p
-            (setq header (buffer-substring-no-properties
-                          (point)
-                          (line-end-position)))
-            (setq header-p nil)
-            (forward-line 3))
-           ((= (char-after) ?\f)
-            ;; (push (cons header (nreverse section)) bindings)
-            ;; (setq section nil)
-            (setq header-p t))
-           ((looking-at "^[ \t]*$")
-            ;; ignore
-            )
-           ((or (not (string-match-p ignore-sections-regexp header))
-                which-key--current-prefix)
-            (let ((binding-start (save-excursion
-                                   (and (re-search-forward "\t+" nil t)
-                                        (match-end 0))))
-                  key binding)
-              (when binding-start
-                (setq key (buffer-substring-no-properties (point) binding-start)
-                      ;; key (replace-regexp-in-string"^[ \t\n]+" "" key)
-                      ;; key (replace-regexp-in-string"[ \t\n]+$" "" key)
-                      )
-                (setq binding (buffer-substring-no-properties
-                               binding-start
-                               (line-end-position)))
-                (save-match-data
-                  (cond
-                   ((member binding ignore-bindings))
-                   ((string-match-p ignore-keys-regexp key))
-                   ((and which-key--current-prefix
-                         (string-match (format "^%s[ \t]\\([^ \t]+\\)[ \t]+$"
-                                               key-str-qt) key))
-                    (unless (assoc-string (match-string 1 key) bindings)
-                      (push (cons (match-string 1 key) binding) bindings)))
-                   ((and which-key--current-prefix
-                         (string-match
-                          (format
-                           "^%s[ \t]\\([^ \t]+\\) \\.\\. %s[ \t]\\([^ \t]+\\)[ \t]+$"
-                           key-str-qt key-str-qt) key))
-                    (let ((stripped-key
-                           (concat (match-string 1 key) " \.\. " (match-string 2 key))))
-                      (unless (assoc-string stripped-key bindings)
-                        (push (cons stripped-key binding) bindings))))
-                   ((string-match "^\\([^ \t]+\\|[^ \t]+ \\.\\. [^ \t]+\\)[ \t]+$" key)
-                    (unless (assoc-string (match-string 1 key) bindings)
-                      (push (cons (match-string 1 key) binding) bindings)))))))))
-          (forward-line))
-        (nreverse bindings)))))
+(defun which-key--canonicalize-bindings (keymap)
+  (when (keymapp keymap)
+    (let (bindings)
+      (map-keymap (lambda (key binding)
+                    (let ((kdesc (key-description (vector key))))
+                      ;; We're only interested in the first binding for a key
+                      ;; since that's what the 'real' key look up will use.
+                      (if (and binding
+                               (not (assoc kdesc bindings)))
+                          (push (cons kdesc binding) bindings))))
+                  keymap)
+      bindings)))
+
+(defun which-key--get-raw-current-bindings (&optional prefix)
+  "Get the current active bindings.
+
+Uses the optional PREFIX argument or the current which-key prefix
+to narrow down the bindings"
+  (let* ((raw-prefix (or prefix which-key--current-prefix))
+         (prefix (if (vectorp raw-prefix)
+                     raw-prefix
+                   (kbd raw-prefix))))
+    (which-key--canonicalize-bindings (key-binding prefix))))
+
+
+(defun which-key--get-raw-binding-desc (binding)
+  (pcase binding
+    ('nil nil)
+    (`(menu-item ,_ ,cmd . ,props)
+     (which-key--get-raw-binding-desc
+      (if-let (filter (plist-get props :filter))
+          (funcall filter nil)
+        cmd)))
+    ((pred symbolp) (copy-sequence (symbol-name binding)))
+    ((pred keymapp)
+     (or (copy-sequence (keymap-prompt binding))
+         "Prefix Command"))
+    ((pred functionp)
+     (or (documentation binding)
+         "??"))))
+
+(defun which-key--get-current-bindings (&optional prefix)
+  (seq-filter 'identity
+              (mapcar (lambda (bindings)
+                        (pcase-let ((`(,key . ,binding) bindings))
+                          (let ((binding (which-key--get-raw-binding-desc binding)))
+                            (when binding
+                              (cons key binding)))))
+                      (which-key--get-raw-current-bindings
+                       (or prefix which-key--current-prefix)))))
 
 (defun which-key--get-formatted-key-bindings (&optional bindings)
   "Uses `describe-buffer-bindings' to collect the key bindings in

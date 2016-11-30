@@ -79,5 +79,13 @@
              (which-key--maybe-replace '("SPC . ." . "don't replace"))
              '("SPC . ." . "don't replace")))))
 
+(ert-deftest which-key-test-duplicate-key-elimination ()
+  "Make sure we eliminate shadowed keys from our current keymap"
+  (let ((our-map '(keymap (?a . 'first-match)
+                           (keymap (?a . 'second-match)))))
+    (should (equal
+             (which-key--canonicalize-bindings our-map)
+             '(("a" . 'first-match))))))
+
 (provide 'which-key-tests)
 ;;; which-key-tests.el ends here
