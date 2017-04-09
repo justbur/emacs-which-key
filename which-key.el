@@ -941,9 +941,30 @@ total height."
 
 ;;; Show/hide which-key buffer
 
+(defun which-key--mouse-event-inside-which-key-p (event)
+  "Determine if the mouse EVENT occurred inside which-key buffer."
+  ;; TODO: How to handle 'custom popup types
+  (cl-case which-key-popup-type
+    ;; Emacs hides the minibuffer by default, I have not found a way to disable
+    ;; that temporarily yet, as such the case below does not really help
+    (minibuffer (minibufferp (window-buffer (posn-window (event-start event)))))
+    (side-window (and (buffer-live-p which-key--buffer)
+                      (equal (posn-window (event-start event))
+                             (get-buffer-window which-key--buffer))))
+    (frame (and (frame-live-p which-key--frame)
+                (equal (window-frame (posn-window (event-start event)))
+                       (get-buffer-window which-key--frame))))))
+
 (defun which-key--hide-popup ()
   "This function is called to hide the which-key buffer."
-  (unless (member real-this-command which-key--paging-functions)
+  (unless (or (member real-this-command which-key--paging-functions)
+              ;; Do not hide the popup the if the last event was a mouse
+              ;; event and was inside which-key popup
+              (and (or (mouse-event-p last-command-event)
+                       ;; 'mwheel-scroll events are not recognized as mouse
+                       ;; events
+                       (equal real-this-command 'mwheel-scroll))
+                   (which-key--mouse-event-inside-which-key-p last-command-event)))
     (setq which-key--current-page-n nil
           which-key--current-prefix nil
           which-key--using-top-level nil
