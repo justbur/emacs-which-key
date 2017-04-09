@@ -410,8 +410,10 @@ prefixes in `which-key-paging-prefixes'"
 (defvar which-key--paging-functions '(which-key-C-h-dispatch
                                       which-key-turn-page
                                       which-key-show-next-page-cycle
+                                      which-key-show-next-page-cycle-mouse
                                       which-key-show-next-page-no-cycle
                                       which-key-show-previous-page-cycle
+                                      which-key-show-previous-page-cycle-mouse
                                       which-key-show-previous-page-no-cycle
                                       which-key-undo-key
                                       which-key-undo))
@@ -1023,7 +1025,13 @@ is shown, or if there is no need to start the closing timer."
       ;; (minibuffer (which-key--show-buffer-minibuffer act-popup-dim))
       (side-window (which-key--show-buffer-side-window act-popup-dim))
       (frame (which-key--show-buffer-frame act-popup-dim))
-      (custom (funcall which-key-custom-show-popup-function act-popup-dim)))))
+      (custom (funcall which-key-custom-show-popup-function act-popup-dim)))
+
+    (when (and (bufferp which-key--buffer)
+               (buffer-live-p which-key--buffer))
+      (with-current-buffer which-key--buffer
+        (setq-local mwheel-scroll-up-function 'which-key-show-next-page-cycle-mouse)
+        (setq-local mwheel-scroll-down-function 'which-key-show-previous-page-cycle-mouse)))))
 
 (defun which-key--fit-buffer-to-window-horizontally (&optional window &rest params)
   "Slightly modified version of `fit-buffer-to-window'.
@@ -1963,6 +1971,19 @@ case do nothing."
              (eq which-key--current-page-n 0))
         (which-key-turn-page 0)
       (which-key-turn-page -1))))
+
+(defun which-key-show-next-page-cycle-mouse (event)
+  "Show the next page of keys, cycling from end to beginning
+after last page."
+  (interactive "e")
+  (which-key-show-next-page-cycle))
+
+(defun which-key-show-previous-page-cycle-mouse (event)
+
+  "Show the previous page of keys, cycling from end to beginning
+after last page."
+  (interactive "e")
+  (which-key-show-previous-page-cycle))
 
 ;;;###autoload
 (defun which-key-show-next-page-cycle ()
