@@ -2289,7 +2289,10 @@ Finally, show the buffer."
   (setq which-key--paging-timer
         (run-with-idle-timer
          0.2 t (lambda ()
-                 (when (or (not (member real-last-command which-key--paging-functions))
+                 (when (or (not (or (member real-last-command which-key--paging-functions)
+                                    (and (or (mouse-event-p last-command-event)
+                                             (equal real-last-command 'mwheel-scroll))
+                                         (which-key--mouse-event-inside-which-key-p last-command-event))))
                            (and (< 0 (length (this-single-command-keys)))
                                 (not (equal which-key--current-prefix
                                             (this-single-command-keys)))))
