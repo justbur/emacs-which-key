@@ -966,7 +966,13 @@ total height."
                        ;; 'mwheel-scroll events are not recognized as mouse
                        ;; events
                        (equal real-this-command 'mwheel-scroll))
-                   (which-key--mouse-event-inside-which-key-p last-command-event)))
+                   (which-key--mouse-event-inside-which-key-p last-command-event))
+              ;; The mouse event was not handled by Emacs
+              (and (not this-command)
+                   (string-prefix-p "mouse-"
+                                    ;; Using prin1-to-string since it can handle
+                                    ;; all kinds of values returned by `event-basic-type'
+                                    (prin1-to-string (event-basic-type last-command-event)))))
     (setq which-key--current-page-n nil
           which-key--current-prefix nil
           which-key--using-top-level nil
