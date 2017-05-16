@@ -122,5 +122,9 @@
   (should (equal (which-key--extract-key "<left> a .. c") "a .. c"))
   (should (equal (which-key--extract-key "M-a a .. c") "a .. c")))
 
+(ert-deftest which-key-test--byte-compile ()
+  "Check for errors in byte compilation."
+  (should (byte-compile-file (expand-file-name "which-key.el"))))
+
 (provide 'which-key-tests)
 ;;; which-key-tests.el ends here
