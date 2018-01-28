@@ -966,13 +966,8 @@ total height."
                        ;; 'mwheel-scroll events are not recognized as mouse
                        ;; events
                        (equal real-this-command 'mwheel-scroll))
-                   (which-key--mouse-event-inside-which-key-p last-command-event))
-              ;; The mouse event was not handled by Emacs
-              (and (not this-command)
-                   (string-prefix-p "mouse-"
-                                    ;; Using prin1-to-string since it can handle
-                                    ;; all kinds of values returned by `event-basic-type'
-                                    (prin1-to-string (event-basic-type last-command-event)))))
+                   (which-key--mouse-event-inside-which-key-p last-command-event)))
+
     (setq which-key--current-page-n nil
           which-key--current-prefix nil
           which-key--using-top-level nil
@@ -981,6 +976,7 @@ total height."
           which-key--current-show-keymap-name nil
           which-key--prior-show-keymap-args nil
           which-key--on-last-page nil)
+
     (when (and which-key-idle-secondary-delay
                which-key--secondary-timer-active)
       (which-key--start-timer))
@@ -1032,12 +1028,12 @@ is shown, or if there is no need to start the closing timer."
       (side-window (which-key--show-buffer-side-window act-popup-dim))
       (frame (which-key--show-buffer-frame act-popup-dim))
       (custom (funcall which-key-custom-show-popup-function act-popup-dim)))
-
     (when (and (bufferp which-key--buffer)
                (buffer-live-p which-key--buffer))
       (with-current-buffer which-key--buffer
         (setq-local mwheel-scroll-up-function 'which-key-show-next-page-cycle-mouse)
-        (setq-local mwheel-scroll-down-function 'which-key-show-previous-page-cycle-mouse)))))
+        (setq-local mwheel-scroll-down-function 'which-key-show-previous-page-cycle-mouse)))
+    (which-key--setup-popup-mouse-scrolling-map)))
 
 (defun which-key--fit-buffer-to-window-horizontally (&optional window &rest params)
   "Slightly modified version of `fit-buffer-to-window'.
@@ -1807,6 +1803,17 @@ including prefix arguments."
       (concat (which-key--propertize-key str)
               (propertize dash 'face 'which-key-key-face)))))
 
+(defun which-key--setup-popup-mouse-scrolling-map ()
+  "Generate map to be used to scroll the popup."
+  (when which-key--current-prefix
+    (let ((prefix (key-description which-key--current-prefix)))
+      (local-set-key (kbd (format "%s <mouse-4>" prefix)) #'mwheel-scroll)
+      (local-set-key (kbd (format "%s <mouse-5>" prefix)) #'mwheel-scroll)
+
+      (with-current-buffer which-key--buffer
+        (local-set-key (kbd (format "%s <mouse-4>" prefix)) #'mwheel-scroll)
+        (local-set-key (kbd (format "%s <mouse-5>" prefix)) #'mwheel-scroll)))))
+    
 (defun which-key--get-popup-map ()
   "Generate transient-map for use in the top level binding display."
   (unless which-key--current-prefix
