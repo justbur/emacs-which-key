@@ -364,8 +364,10 @@ are
 1. `which-key-key-order': by key (default)
 2. `which-key-key-order-alpha': by key using alphabetical order
 3. `which-key-description-order': by description
-4. `which-key-prefix-then-key-order': prefix (no prefix first) then key
-5. `which-key-local-then-key-order': local binding then key
+4. `which-key-description-then-prefix-order': by description, prefix last
+5. `which-key-key-then-prefix-order': key then prefix
+6. `which-key-prefix-then-key-order': prefix then key
+7. `which-key-local-then-key-order': local binding then key
 
 See the README and the docstrings for those functions for more
 information."
@@ -373,6 +375,8 @@ information."
   :type '(choice (function-item which-key-key-order)
                  (function-item which-key-key-order-alpha)
                  (function-item which-key-description-order)
+                 (function-item which-key-description-then-prefix-order)
+                 (function-item which-key-key-then-prefix-order)
                  (function-item which-key-prefix-then-key-order)
                  (function-item which-key-local-then-key-order)))
 
@@ -1361,16 +1365,33 @@ the ordering of classes are listed below.
 special (SPC,TAB,...) < single char < mod (C-,M-,...) < other."
   (which-key--key-description< (car acons) (car bcons)))
 
+(defsubst which-key--string-group-descr-face-p (str)
+  (face-equal 'which-key-group-description-face (get-text-property 0 'face str)))
+
 (defsubst which-key-description-order (acons bcons)
   "Order descriptions of A and B.
 Uses `string-lessp' after applying lowercase."
-  (string-lessp (downcase (cdr acons)) (downcase (cdr bcons))))
+  (let ((adesc (nth 2 acons))
+        (bdesc (nth 2 bcons)))
+    (string-lessp (downcase adesc) (downcase bdesc))))
+
+(defsubst which-key-description-then-prefix-order (acons bcons)
+  "Order descriptions of A and B, place prefix entries at the end.
+Uses `string-lessp' after applying lowercase."
+  (let* ((adesc (nth 2 acons))
+         (bdesc (nth 2 bcons))
+         (apref? (which-key--string-group-descr-face-p adesc))
+         (bpref? (which-key--string-group-descr-face-p bdesc)))
+    (if (or (and apref? bpref?)
+            (and (not apref?) (not bpref?)))
+        (string-lessp (downcase adesc) (downcase bdesc))
+      bpref?)))
 
 (defsubst which-key--group-p (description)
   (or (string-match-p "^\\(group:\\|Prefix\\)" description)
       (keymapp (intern description))))
 
-(defun which-key-prefix-then-key-order (acons bcons)
+(defun which-key-key-then-prefix-order (acons bcons)
   "Order first by whether A and/or B is a prefix with no prefix
 coming before a prefix. Within these categories order using
 `which-key-key-order'."
@@ -1380,7 +1401,7 @@ coming before a prefix. Within these categories order using
         (and (not apref?) bpref?)
       (which-key-key-order acons bcons))))
 
-(defun which-key-prefix-then-key-order-reverse (acons bcons)
+(defun which-key-prefix-then-key-order (acons bcons)
   "Order first by whether A and/or B is a prefix with prefix
 coming before a prefix. Within these categories order using
 `which-key-key-order'."
@@ -1842,10 +1863,17 @@ non-nil, then bindings are collected recursively for all prefixes."
                  (which-key--get-current-bindings prefix)))))
     (when filter
       (setq unformatted (cl-remove-if-not filter unformatted)))
-    (when which-key-sort-order
-      (setq unformatted
-            (sort unformatted which-key-sort-order)))
-    (which-key--format-and-replace unformatted prefix recursive)))
+
+    (if (or (eq which-key-sort-order 'which-key-description-order)
+            (eq which-key-sort-order 'which-key-description-then-prefix-order))
+        (let ((formatted
+               (which-key--format-and-replace unformatted prefix recursive)))
+          (sort formatted which-key-sort-order))
+      (progn
+        (when which-key-sort-order
+          (setq unformatted
+                (sort unformatted which-key-sort-order)))
+        (which-key--format-and-replace unformatted prefix recursive)))))
 
 ;;; Functions for laying out which-key buffer pages
 
