@@ -93,6 +93,13 @@ Also adds \"..\". If nil, disable any truncation."
   :group 'which-key
   :type '(choice integer (const :tag "Disable truncation" nil)))
 
+(defcustom which-key-truncate-style 'end
+  "Which part of command name to remove when its name exceeds maximum length."
+  :group 'which-key
+  :type '(choice (const beginning)
+                 (const middle)
+                 (const end)))
+
 (defcustom which-key-add-column-padding 0
   "Additional padding (number of spaces) to add to the left of
 each key column."
@@ -1604,10 +1611,20 @@ If KEY contains any \"special keys\" defined in
 (defsubst which-key--truncate-description (desc)
   "Truncate DESC description to `which-key-max-description-length'."
   (let* ((last-face (get-text-property (1- (length desc)) 'face desc))
-         (dots (which-key--propertize ".." 'face last-face)))
+         (dots (which-key--propertize ".." 'face last-face))
+         (length (length desc))
+         (max-length (- which-key-max-description-length 2)))
     (if (and which-key-max-description-length
-             (> (length desc) which-key-max-description-length))
-        (concat (substring desc 0 which-key-max-description-length) dots)
+             (> length which-key-max-description-length))
+        (cl-case which-key-truncate-style
+          ('beginning (let* ((end (length desc))
+                             (start (- end max-length)))
+                        (concat dots (substring desc start end))))
+          ('middle (let* ((end-length (/ max-length 2))
+                          (start-length (- max-length end-length)))
+                     (concat (substring desc 0 start-length) dots
+                             (substring desc (- length end-length) length))))
+          (t (concat (substring desc 0 max-length) dots)))
       desc)))
 
 (defun which-key--highlight-face (description)
