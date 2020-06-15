@@ -771,6 +771,18 @@ problems at github.")
     (when (bound-and-true-p which-key-mode)
       (which-key--hide-popup))))
 
+(defun which-key--god-mode-help-char-dispatch (orig-fn &rest args)
+  "Advice function for `god-mode-help-char-dispatch'."
+  (if (not (which-key--popup-showing-p))
+      (apply orig-fn args)
+    (which-key-C-h-dispatch)
+    ;; Discard last prefix input. `discard-input' cannot be used
+    ;; here as it ends any macro being defined.
+    (setq unread-command-events nil)
+    ;; Return keys entered so far to prevent quitting current key
+    ;; sequence.
+    (cadr args)))
+
 (defun which-key-enable-god-mode-support (&optional disable)
   "Enable support for god-mode if non-nil. This is experimental,
 so you need to explicitly opt-in for now. Please report any
@@ -779,9 +791,13 @@ problems at github. If DISABLE is non-nil disable support."
   (setq which-key--god-mode-support-enabled (null disable))
   (cond (which-key--god-mode-support-enabled
          (advice-add 'god-mode-lookup-command
-                     :around #'which-key--god-mode-lookup-command-advice))
+                     :around #'which-key--god-mode-lookup-command-advice)
+         (advice-add 'god-mode-help-char-dispatch
+                     :around #'which-key--god-mode-help-char-dispatch))
         (t (advice-remove 'god-mode-lookup-command
-                          #'which-key--god-mode-lookup-command-advice))))
+                          #'which-key--god-mode-lookup-command-advice)
+           (advice-remove 'god-mode-help-char-dispatch
+                          #'which-key--god-mode-help-char-dispatch))))
 
 ;;; Mode
 
