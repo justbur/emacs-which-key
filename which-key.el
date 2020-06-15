@@ -775,6 +775,7 @@ problems at github.")
   "Advice function for `god-mode-help-char-dispatch'."
   (if (not (which-key--popup-showing-p))
       (apply orig-fn args)
+    (which-key--stop-timer)
     (which-key-C-h-dispatch)
     ;; Discard last prefix input. `discard-input' cannot be used
     ;; here as it ends any macro being defined.
