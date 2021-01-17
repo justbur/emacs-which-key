@@ -924,7 +924,7 @@ actually bound to write-file before performing the replacement."
            (command-verified (or (null (cdr-safe replacement))
                                  (equal command (cdr-safe replacement)))))
       ;; Only bind to symbols, since a number indicates an error in lookup-key.
-      (when (and command (symbolp command) command-verified)
+      (when (and command (or (symbolp command) (keymapp command)) command-verified)
         (define-key keymap key-internal
           (cons string command))))
     (setq key (pop more)

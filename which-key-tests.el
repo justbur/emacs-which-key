@@ -37,12 +37,13 @@
     (which-key-add-keymap-based-replacements emacs-lisp-mode-map
       "C-c C-a" '("mycomplete" . complete)
       "C-c C-b" "mymap")
-    (should (equal
-             (which-key--maybe-replace '("C-c C-a" . "complete"))
-             '("C-c C-a" . "mycomplete")))
-    (should (equal
-             (which-key--maybe-replace '("C-c C-b" . ""))
-             '("C-c C-b" . "mymap")))))
+    (let ((bindings (which-key--get-keymap-bindings emacs-lisp-mode-map nil nil (listify-key-sequence (kbd "C-c")))))
+      (should (equal
+               (assoc "C-c C-a" bindings)
+               '("C-c C-a" . "mycomplete")))
+      (should (equal
+               (assoc "C-c C-b" bindings)
+               '("C-c C-b" . "mymap"))))))
 
 (ert-deftest which-key-test--prefix-declaration ()
   "Test `which-key-declare-prefixes' and
