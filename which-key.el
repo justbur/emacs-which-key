@@ -1769,6 +1769,18 @@ ones. PREFIX is for internal use and should not be used."
                        :test (lambda (a b) (string= (car a) (car b))))))
                ((and (keymapp def)
                      (string-match-p which-key--evil-keys-regexp key-desc)))
+               ;; Menu items are '(menu-item name binding . properties), so
+               ;; check for a sub-menu.
+               ((and (eq 'menu-item (car-safe def))
+                     ;; Is it a sub-menu?
+                     (keymapp (nth 2 def))
+                     (or all
+                         (and prefix-to-check (equal ev prefix-to-check))))
+                (setq bindings
+                      (append bindings
+                              (which-key--get-keymap-bindings (nth 2 def) all key (cdr-safe prefix-list)))))
+               ;; Expand nested keymaps if they match the given prefix or all
+               ;; keys were requested.
                ((and (keymapp def)
                      (or all
                          (and prefix-to-check (equal ev prefix-to-check))
