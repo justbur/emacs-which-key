@@ -1750,7 +1750,12 @@ ones. PREFIX is for internal use and should not be used."
     (map-keymap
      (lambda (ev def)
        (let* ((key (append prefix (list ev)))
-              (key-desc (key-description key)))
+              (key-desc (key-description key))
+              (can-descend (or all
+                               (and prefix-to-check (equal ev prefix-to-check))
+                               ;; event 27 is escape, so this will pick up meta
+                               ;; bindings and hopefully not too much more
+                               (and (numberp ev) (= ev 27)))))
          (cond ((or (and prefix-to-check (not (equal ev prefix-to-check)))
                     (eq ev 'menu-bar)
                     (string-match-p
@@ -1769,27 +1774,32 @@ ones. PREFIX is for internal use and should not be used."
                        :test (lambda (a b) (string= (car a) (car b))))))
                ((and (keymapp def)
                      (string-match-p which-key--evil-keys-regexp key-desc)))
+               ;; Expand nested keymaps if they match the given prefix or all
+               ;; keys were requested.
+               ((and can-descend (keymapp def))
+                (setq bindings
+                      (append bindings
+                              (which-key--get-keymap-bindings def
+                                                              all
+                                                              key
+                                                              (cdr-safe prefix-list)))))
+               ;; Check for a nested keymap in a simple menu item '(name . keymap)
+               ((and can-descend (keymapp (cdr-safe def)))
+                (setq bindings
+                      (append bindings
+                              (which-key--get-keymap-bindings (cdr def)
+                                                              all
+                                                              key
+                                                              (cdr-safe prefix-list)))))
                ;; Menu items are '(menu-item name binding . properties), so
                ;; check for a sub-menu.
-               ((and (eq 'menu-item (car-safe def))
+               ((and can-descend
+                     (eq 'menu-item (car-safe def))
                      ;; Is it a sub-menu?
-                     (keymapp (nth 2 def))
-                     (or all
-                         (and prefix-to-check (equal ev prefix-to-check))))
+                     (keymapp (nth 2 def)))
                 (setq bindings
                       (append bindings
                               (which-key--get-keymap-bindings (nth 2 def) all key (cdr-safe prefix-list)))))
-               ;; Expand nested keymaps if they match the given prefix or all
-               ;; keys were requested.
-               ((and (keymapp def)
-                     (or all
-                         (and prefix-to-check (equal ev prefix-to-check))
-                         ;; event 27 is escape, so this will pick up meta
-                         ;; bindings and hopefully not too much more
-                         (and (numberp ev) (= ev 27))))
-                (setq bindings
-                      (append bindings
-                              (which-key--get-keymap-bindings def all key (cdr-safe prefix-list)))))
                (t
                 (when def
                   (cl-pushnew
@@ -1797,7 +1807,8 @@ ones. PREFIX is for internal use and should not be used."
                          (cond
                           ((keymapp def) "Prefix Command")
                           ((symbolp def) (copy-sequence (symbol-name def)))
-                          ((eq 'lambda (car-safe def)) "lambda")
+                          ((or (functionp def)
+                               (eq 'lambda (car-safe def))) "lambda")
                           ;; Support extended menu items.
                           ((eq 'menu-item (car-safe def)) (or (nth 1 def) "menu-item"))
                           ((stringp def) def)
