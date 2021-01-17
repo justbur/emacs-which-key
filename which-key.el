@@ -1800,7 +1800,8 @@ ones. PREFIX is for internal use and should not be used."
                 (setq bindings
                       (append bindings
                               (which-key--get-keymap-bindings (nth 2 def) all key (cdr-safe prefix-list)))))
-               (t
+               ;; Only retrieve bindings at the exact prefix we're looking for.
+               ((or all (null prefix-to-check))
                 (when def
                   (cl-pushnew
                    (cons key-desc
@@ -1826,19 +1827,16 @@ ones. PREFIX is for internal use and should not be used."
          (keys-list (listify-key-sequence prefix))
          (get-bindings (lambda (map)
                          (which-key--get-keymap-bindings map nil nil keys-list)))
-         (bound-to-prefix (lambda (binding)
-                            ;; Is this bound to a command under the right prefix?
-                            (and (cdr-safe binding)
-                                 (string-prefix-p key-desc (car-safe binding) t))))
          (comparator (lambda (a b)
-                       (or (equal (car-safe a) (car-safe b))
-                           (equal a b))))
+                       (string= (car a) (car b))))
          (mapper (lambda (x)
                    (cons (substring (car x) (length key-desc))
                          (cdr x)))))
     (mapcar mapper
+            ;; Only take the first binding of each key.
             (cl-remove-duplicates
-             (cl-remove-if-not bound-to-prefix (mapcan get-bindings (current-active-maps t)))
+             ;; Get the bindings of each active keymap.
+             (mapcan get-bindings (current-active-maps t))
              :test comparator))))
 
 (defun which-key--get-bindings (&optional prefix keymap filter recursive)
