@@ -265,8 +265,24 @@
 **** Keymap-based replacement
      Using this method, which-key can display a custom string for a key
      definition in some keymap. There are two ways to define a keymap-based
-     replacement. The first is to use
-     =which-key-add-keymap-based-replacements=. The statement
+     replacement. The first is to define menu items,
+     [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Simple-Menu-Items.html#Simple-Menu-Items][simple]]
+     or
+     [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Extended-Menu-Items.html#Extended-Menu-Items][extended]],
+     in =define-key=. The statement
+
+     #+BEGIN_SRC emacs-lisp
+     (define-key some-map "f" '("foo" . command-foo))
+     (define-key some-map "b" '("bar-prefix"))
+     #+END_SRC
+
+     uses =define-key= to add two bindings and tells which-key to use the string
+     "foo" in place of "command-foo" and the string "bar-prefix" for
+     some-prefix-map.  Since many key-binding utilities use =define-key=
+     internally, this functionality should be available with your favorite
+     method of defining keys as well.
+
+     Alternatively, you may use =which-key-add-keymap-based-replacements= some time after calling =define-key= as follows:
 
      #+BEGIN_SRC emacs-lisp
        (define-key some-map "f" 'long-command-name-foo)
@@ -281,25 +297,10 @@
        )
      #+END_SRC
 
-     uses =define-key= to add two bindings and tells which-key to use the string
-     "foo" in place of "command-foo" and the string "bar-prefix" for
-     some-prefix-map. Note that =which-key-add-keymap-based-replacements= will
-     not bind a command, so =define-key= must still be used.
-
-     Alternatively, you may set =which-key-enable-extended-define-key= to =t=
-     before loading which-key and accomplish the same effect using only
-     =define-key= as follows.
-
-     #+BEGIN_SRC emacs-lisp
-     (define-key some-map "f" '("foo" . command-foo))
-     (define-key some-map "b" '("bar-prefix"))
-     #+END_SRC
-
-     The option =which-key-enable-extended-define-key= advises =define-key= to
-     allow which-key to use the =(NAME . COMMAND)= notation to simultaneously
-     define a command and give that command a name using =define-key=. Since
-     many key-binding utilities use =define-key= internally, this functionality
-     should be available with your favorite method of defining keys as well.
+     Note that =which-key-add-keymap-based-replacements= will
+     not bind a command, so =define-key= must still be used for that.
+     This may be useful for adding descriptions to existing bindings only if
+     they already exist.
 
      There are other methods of telling which-key to replace command names,
      which are described next. The keymap-based replacements should be the most
