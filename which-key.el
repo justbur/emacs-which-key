@@ -1815,7 +1815,9 @@ ones. PREFIX is for internal use and should not be used."
                           ((stringp def) def)
                           ((vectorp def) (key-description def))
                           ;; Support simple menu items.
-                          ((consp def) (car-safe def))
+                          ((consp def) (if (keymapp (cdr def))
+                                           (concat "group:" (car def))
+                                         (car def)))
                           (t "unknown")))
                    bindings :test (lambda (a b) (string= (car a) (car b)))))))))
      keymap)
