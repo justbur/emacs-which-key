@@ -1831,15 +1831,28 @@ ones. PREFIX is for internal use and should not be used."
                          (which-key--get-keymap-bindings map nil nil keys-list)))
          (comparator (lambda (a b)
                        (string= (car a) (car b))))
-         (mapper (lambda (x)
-                   (cons (substring (car x) (length key-desc))
-                         (cdr x)))))
-    (mapcar mapper
-            ;; Only take the first binding of each key.
-            (cl-remove-duplicates
-             ;; Get the bindings of each active keymap.
-             (mapcan get-bindings (current-active-maps t))
-             :test comparator))))
+         ;; Get bindings from all active keymaps that match the given prefix.
+         (all-keymaps (mapcar get-bindings (current-active-maps t)))
+         ;; If one of those maps binds <override-state>, then it should shadow others.
+         (binding-is-overriding (lambda (binding)
+                                  (string-suffix-p "<override-state>" (car binding))))
+         ;; If there was an override keymap, then only show those bindings.
+         (overriding-keymap (cl-find-if
+                             (lambda (keymap) (cl-find-if binding-is-overriding keymap))
+                             all-keymaps))
+         (final-binding-list nil))
+    (cl-dolist (many-bindings (if overriding-keymap
+                                  (list overriding-keymap)
+                                all-keymaps))
+      (cl-dolist (binding many-bindings)
+        ;; Don't include an <override-state> binding in the result.
+        (unless (and overriding-keymap (funcall binding-is-overriding binding))
+          ;; Only take the first binding of each key.
+          (cl-pushnew (cons (substring (car binding) (length key-desc))
+                            (cdr binding))
+                      final-binding-list
+                      :test comparator))))
+    final-binding-list))
 
 (defun which-key--get-bindings (&optional prefix keymap filter recursive)
   "Collect key bindings.

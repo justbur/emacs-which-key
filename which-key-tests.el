@@ -43,7 +43,7 @@
                '("C-c C-a" . "mycomplete")))
       (should (equal
                (assoc "C-c C-b" bindings)
-               '("C-c C-b" . "mymap"))))))
+               '("C-c C-b" . "group:mymap"))))))
 
 (ert-deftest which-key-test--prefix-declaration ()
   "Test `which-key-declare-prefixes' and
