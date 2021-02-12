@@ -37,7 +37,10 @@
     (which-key-add-keymap-based-replacements emacs-lisp-mode-map
       "C-c C-a" '("mycomplete" . complete)
       "C-c C-b" "mymap")
-    (let ((bindings (which-key--get-keymap-bindings emacs-lisp-mode-map nil nil (listify-key-sequence (kbd "C-c")))))
+    (let ((bindings (which-key--get-keymap-bindings emacs-lisp-mode-map
+                                                    nil
+                                                    nil
+                                                    (listify-key-sequence (kbd "C-c")))))
       (should (equal
                (assoc "C-c C-a" bindings)
                '("C-c C-a" . "mycomplete")))

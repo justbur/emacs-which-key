@@ -525,6 +525,20 @@ it."
   :group 'which-key
   :type 'boolean)
 
+(defcustom which-key-enable-extended-define-key nil
+  "Used to advise `define-key' to support basic binding replacements.
+
+  \(define-key KEYMAP KEY '(\"DESCRIPTION\" . DEF))
+
+This functionality has been replaced by direct support for built-in Emacs menu
+items, both simple and extended.  Using a cons cell like this is a valid
+definition for `define-key'.  Since many higher level keybinding functions use
+`define-key' internally, this will affect most if not all of those as well."
+  :group 'which-key
+  :type 'boolean)
+
+(make-obsolete-variable 'which-key-enable-extended-define-key nil "2021-02-02")
+
 ;; Hooks
 (defcustom which-key-init-buffer-hook '()
   "Hook run when which-key buffer is initialized."
@@ -915,16 +929,19 @@ both have the same effect for the \"C-x C-w\" key binding, but
 the latter causes which-key to verify that the key sequence is
 actually bound to write-file before performing the replacement."
   (while key
-    (let* ((string (if (stringp replacement)
+    (let* ((keymap (if (keymapp keymap)
+                       keymap
+                     (symbol-value keymap)))
+           (string (if (stringp replacement)
                        replacement
                      (car-safe replacement)))
-           (key-internal (kbd key))
-           (command (lookup-key keymap key-internal))
+           (key-internal (and key (kbd key)))
+           (command (and key-internal (lookup-key keymap key-internal)))
            ;; If a command was specified, check that against the existing binding.
            (command-verified (or (null (cdr-safe replacement))
                                  (equal command (cdr-safe replacement)))))
       ;; Only bind to symbols, since a number indicates an error in lookup-key.
-      (when (and command (or (symbolp command) (keymapp command)) command-verified)
+      (when (and command-verified (or (null command) (symbolp command) (keymapp command)) )
         (define-key keymap key-internal
           (cons string command))))
     (setq key (pop more)
