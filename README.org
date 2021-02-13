@@ -272,15 +272,24 @@
      in =define-key=. The statement
 
      #+BEGIN_SRC emacs-lisp
+     ;; Simple menu item for command.
      (define-key some-map "f" '("foo" . command-foo))
-     (define-key some-map "b" '("bar-prefix"))
+     ;; Simple menu item for prefix key.
+     (define-key some-map "b" `("bar-prefix" . ,some-prefix-map))
+     ;; Extended menu item for command.
+     (define-key some-map "F" '(menu-item "Bar!" command-bar . ()))
      #+END_SRC
 
-     uses =define-key= to add two bindings and tells which-key to use the string
-     "foo" in place of "command-foo" and the string "bar-prefix" for
-     some-prefix-map.  Since many key-binding utilities use =define-key=
+     uses =define-key= to add three bindings and tells which-key to use the
+     string "foo" in place of "command-foo" and the string "bar-prefix" for
+     some-prefix-map. Lastly, the string "Bar!" is displayed in place of
+     "command-bar". Since many key-binding utilities use =define-key=
      internally, this functionality should be available with your favorite
      method of defining keys as well.
+
+     At the moment, menu item properties like =:visible= or =:button= are not
+     explicitly supported and do not affect the display provided by =which-key=.
+     Some of these properties may be supported at some point.
 
      Alternatively, you may use =which-key-add-keymap-based-replacements= some time after calling =define-key= as follows:
 
