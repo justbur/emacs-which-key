@@ -1758,6 +1758,10 @@ alists. Returns a list (key separator description)."
            new-list))))
     (nreverse new-list)))
 
+(defun which-key--dup-test (a b)
+  "Test whether two bindings A and B use the same key."
+  (string= (car a) (car b)))
+
 (defun which-key--get-keymap-bindings (keymap &optional all prefix prefix-list)
   "Retrieve top-level bindings from KEYMAP.
 If ALL is non-nil, get all bindings, not just the top-level
@@ -1782,13 +1786,12 @@ ones. PREFIX is for internal use and should not be used."
                      (boundp 'evil-state)
                      (bound-and-true-p evil-local-mode)
                      (string-match-p (format "<%s-state>$" evil-state) key-desc))
-                (setq bindings
-                      ;; this function keeps the latter of the two duplicates
-                      ;; which will be the evil binding
-                      (cl-remove-duplicates
-                       (append bindings
-                               (which-key--get-keymap-bindings def all prefix prefix-list))
-                       :test (lambda (a b) (string= (car a) (car b))))))
+                ;; this function keeps the latter of the two duplicates
+                ;; which will be the evil binding
+                (let ((evil-binds (which-key--get-keymap-bindings def all prefix prefix-list)))
+                  (dolist (bind bindings)
+                    (cl-pushnew bind evil-binds :test #'which-key--dup-test))
+                  (setq bindings evil-binds)))
                ((and (keymapp def)
                      (string-match-p which-key--evil-keys-regexp key-desc)))
                ;; Expand nested keymaps if they match the given prefix or all
@@ -1836,7 +1839,7 @@ ones. PREFIX is for internal use and should not be used."
                                            (concat "group:" (car def))
                                          (car def)))
                           (t "unknown")))
-                   bindings :test (lambda (a b) (string= (car a) (car b)))))))))
+                   bindings :test #'which-key--dup-test))))))
      keymap)
     bindings))
 
@@ -1846,8 +1849,6 @@ ones. PREFIX is for internal use and should not be used."
          (keys-list (listify-key-sequence prefix))
          (get-bindings (lambda (map)
                          (which-key--get-keymap-bindings map nil nil keys-list)))
-         (comparator (lambda (a b)
-                       (string= (car a) (car b))))
          ;; Get bindings from all active keymaps that match the given prefix.
          (all-keymaps (mapcar get-bindings (current-active-maps t)))
          ;; If one of those maps binds <override-state>, then it should shadow others.
@@ -1868,7 +1869,7 @@ ones. PREFIX is for internal use and should not be used."
           (cl-pushnew (cons (substring (car binding) (length key-desc))
                             (cdr binding))
                       final-binding-list
-                      :test comparator))))
+                      :test #'which-key--dup-test))))
     final-binding-list))
 
 (defun which-key--get-bindings (&optional prefix keymap filter recursive)
