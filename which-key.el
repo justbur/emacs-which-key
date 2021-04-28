@@ -677,7 +677,7 @@ update.")
 (defvar which-key--ignore-non-evil-keys-regexp
   (eval-when-compile
     (regexp-opt '("mouse-" "wheel-" "remap" "drag-" "scroll-bar"
-                  "select-window" "switch-frame" "which-key"))))
+                  "select-window" "switch-frame" "<intercept-state>"))))
 (defvar which-key--ignore-keys-regexp
   (eval-when-compile
     (regexp-opt '("mouse-" "wheel-" "remap" "drag-" "scroll-bar"
@@ -1505,6 +1505,10 @@ local bindings coming first. Within these categories order using
                        (keymapp pseudo-def)
                        (eq pseudo-def (key-binding key))))
           (cons (car key-binding) pseudo-desc))))))
+(defun which-key-is-pseudo-bind-p (def)
+  " Simple Test for the def part of a key-def from a keymap "
+  (and (listp def) (eq (car def) 'which-key))
+)
 
 (defsubst which-key--replace-in-binding (key-binding repl)
   (cond ((or (not (consp repl)) (null (cdr repl)))
@@ -1790,17 +1794,27 @@ alists. Returns a list (key separator description)."
     (nreverse new-list)))
 
 (defun which-key--get-keymap-bindings (keymap &optional all prefix)
-  "Retrieve top-level bindings from KEYMAP.
-If ALL is non-nil, get all bindings, not just the top-level
-ones. PREFIX is for internal use and should not be used."
+  " Given a keymap, return a list of tuples (KEY . DEF),
+where DEF *might* be a which-key pseudo-binding.
+
+ALL enables recursion into prefix-maps,
+PREFIX is used to accumulate those prefixes as the recursion progresses
+"
   (let (bindings)
     (map-keymap
      (lambda (ev def)
        (let* ((key (append prefix (list ev)))
-              (key-desc (key-description key)))
+              (key-desc (key-description key))
+              )
          (cond ((or (string-match-p
-                     which-key--ignore-non-evil-keys-regexp key-desc)
+                     ignore-regexp key-desc)
                     (eq ev 'menu-bar)))
+               ;; Important: if a which-key pseudo-map, handle here:
+               ((eq (car key) 'which-key)
+                (setq bindings (cl-remove-duplicates
+                                (append bindings
+                                        (which-key--get-keymap-bindings def all prefix))
+                                :test (lambda (a b) (string= (car a) (car b))))))
                ;; extract evil keys corresponding to current state
                ((and (keymapp def)
                      (boundp 'evil-state)
@@ -1814,7 +1828,9 @@ ones. PREFIX is for internal use and should not be used."
                                (which-key--get-keymap-bindings def all prefix))
                        :test (lambda (a b) (string= (car a) (car b))))))
                ((and (keymapp def)
-                     (string-match-p which-key--evil-keys-regexp key-desc)))
+                     (string-match-p which-key--evil-keys-regexp key-desc))
+                ;;(message "Ignoring def because evil state isnt active key: %s : %s" key-desc def)
+                )
                ((and (keymapp def)
                      (or all
                          ;; event 27 is escape, so this will pick up meta
@@ -1824,10 +1840,12 @@ ones. PREFIX is for internal use and should not be used."
                       (append bindings
                               (which-key--get-keymap-bindings def t key))))
                (t
+                ;; TODO force which-key entries to override others
                 (when def
                   (cl-pushnew
                    (cons key-desc
                          (cond
+                          ((which-key-is-pseudo-bind-p def) def)
                           ((keymapp def) "Prefix Command")
                           ((symbolp def) (copy-sequence (symbol-name def)))
                           ((eq 'lambda (car-safe def)) "lambda")
