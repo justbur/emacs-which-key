@@ -1804,8 +1804,7 @@ PREFIX is used to accumulate those prefixes as the recursion progresses
        (let* ((key (append prefix (list ev)))
               (key-desc (key-description key))
               )
-         (cond ((or (string-match-p
-                     ignore-regexp key-desc)
+         (cond ((or (string-match-p which-key--ignore-non-evil-keys-regexp key-desc)
                     (eq ev 'menu-bar)))
                ;; Important: if a which-key pseudo-map, handle here:
                ((eq (car key) 'which-key)
