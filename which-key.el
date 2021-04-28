@@ -1893,75 +1893,48 @@ Requires `which-key-compute-remaps' to be non-nil"
   )
 
 (defun which-key--get-current-bindings (&optional prefix)
-  "Generate a list of current active bindings."
-  (let ((key-str-qt (regexp-quote (key-description prefix)))
-        (buffer (current-buffer))
-        (ignore-bindings '("self-insert-command" "ignore"
-                           "ignore-event" "company-ignore"))
-        (ignore-sections-regexp
-         (eval-when-compile
-           (regexp-opt '("Key translations" "Function key map translations"
-                         "Input decoding map translations")))))
-    (with-temp-buffer
-      (setq-local indent-tabs-mode t)
-      (setq-local tab-width 8)
-      (describe-buffer-bindings buffer prefix)
-      (goto-char (point-min))
-      (let ((header-p (not (= (char-after) ?\f)))
-            bindings header)
-        (while (not (eobp))
-          (cond
-           (header-p
-            (setq header (buffer-substring-no-properties
-                          (point)
-                          (line-end-position)))
-            (setq header-p nil)
-            (forward-line 3))
-           ((= (char-after) ?\f)
-            (setq header-p t))
-           ((looking-at "^[ \t]*$"))
-           ((or (not (string-match-p ignore-sections-regexp header)) prefix)
-            (let ((binding-start (save-excursion
-                                   (and (re-search-forward "\t+" nil t)
-                                        (match-end 0))))
-                  key binding)
-              (when binding-start
-                (setq key (buffer-substring-no-properties
-                           (point) binding-start))
-                (setq binding (buffer-substring-no-properties
-                               binding-start
-                               (line-end-position)))
-                (save-match-data
-                  (cond
-                   ((member binding ignore-bindings))
-                   ((string-match-p which-key--ignore-keys-regexp key))
-                   ((and prefix
-                         (string-match (format "^%s[ \t]\\([^ \t]+\\)[ \t]+$"
-                                               key-str-qt) key))
-                    (unless (assoc-string (match-string 1 key) bindings)
-                      (push (cons (match-string 1 key)
-                                  (which-key--compute-binding binding))
-                            bindings)))
-                   ((and prefix
-                         (string-match
-                          (format
-                           "^%s[ \t]\\([^ \t]+\\) \\.\\. %s[ \t]\\([^ \t]+\\)[ \t]+$"
-                           key-str-qt key-str-qt) key))
-                    (let ((stripped-key (concat (match-string 1 key)
-                                                " \.\. "
-                                                (match-string 2 key))))
-                      (unless (assoc-string stripped-key bindings)
-                        (push (cons stripped-key
-                                    (which-key--compute-binding binding))
-                              bindings))))
-                   ((string-match
-                     "^\\([^ \t]+\\|[^ \t]+ \\.\\. [^ \t]+\\)[ \t]+$" key)
-                    (unless (assoc-string (match-string 1 key) bindings)
-                      (push (cons (match-string 1 key)
-                                  (which-key--compute-binding binding))
-                            bindings)))))))))
-          (forward-line))
-        (nreverse bindings)))))
+  "Generate a list of current active bindings. "
+  ;; TODO use which-key-current-binding-considerations
+  (let* ((leader-map (if (string-prefix-p doom-leader-key (key-description prefix)) doom-leader-map))
+         (major-mode-map-sym (intern (format "%s-map" major-mode)))
+         (evil-state-map-sym (intern (format "evil-%s-state-map" evil-state)))
+         ;; TODO evil local maps, override, intercept
+         (active-minor-modes (which-key--get-active-minor-modes))
+         (minor-mode-maps (mapcar #'(lambda (x) (alist-get x minor-mode-map-alist))
+                                                     active-minor-modes))
+         (active-maps (-filter #'identity (seq-concatenate 'list (mapcar #'symbol-value (list major-mode-map-sym evil-state-map-sym))
+                                                           minor-mode-maps)))
+         (prefix-handled (which-key--consume-prefix-on-maps prefix active-maps evil-state))
+         (ignore-bindings '("self-insert-command" "ignore"
+                            "ignore-event" "company-ignore"))
+         unformatted bindings)
+
+    (if leader-map
+        (setq prefix-handled (append (which-key--consume-prefix-on-maps
+                                      (vconcat (cdr (append prefix nil)))
+                                      `(,leader-map) evil-state)
+                                     prefix-handled)))
+
+    (setq unformatted (mapcar #'which-key--get-keymap-bindings prefix-handled))
+
+    ;; Loop over all found bindings, filtering as necessary
+    ;; TODO this would be better to do later, so as to only use maybe-replace once
+    (loop for bind-pair in (-flatten-n 1 (-filter #'identity unformatted)) do
+          (let* ((formatted (which-key--maybe-replace bind-pair prefix))
+                 (key (car formatted))
+                 (binding (cdr formatted))
+                )
+            (cond ((null key))
+                  ((member binding ignore-bindings))
+                  ((string-match-p which-key--ignore-keys-regexp key))
+                  ((unless (assoc-string key bindings)
+                     (push (cons key (which-key--compute-binding binding))
+                           bindings))))))
+
+    (nreverse bindings)
+    )
+  )
+
 
 (defun which-key--get-bindings (&optional prefix keymap filter recursive)
   "Collect key bindings.
