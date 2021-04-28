@@ -1492,19 +1492,13 @@ local bindings coming first. Within these categories order using
                (string-match-p binding-regexp
                                (cdr key-binding)))))))
 
-(defun which-key--get-pseudo-binding (key-binding &optional prefix)
-  (let* ((key (kbd (car key-binding)))
-         (pseudo-binding (key-binding (which-key--pseudo-key key prefix))))
-    (when pseudo-binding
-      (let* ((command-replacement (cadr pseudo-binding))
-             (pseudo-desc (car command-replacement))
-             (pseudo-def (cdr command-replacement)))
-        (when (and (stringp pseudo-desc)
-                   (or (null pseudo-def)
-                       ;; don't verify keymaps
-                       (keymapp pseudo-def)
-                       (eq pseudo-def (key-binding key))))
-          (cons (car key-binding) pseudo-desc))))))
+(defun which-key--get-pseudo-binding (key-bind-pair &optional prefix)
+  (let* ((key (car key-bind-pair))
+         (is-pseudo-binding (which-key-is-pseudo-bind-p (cdr key-bind-pair))))
+    (when is-pseudo-binding
+      `(,key . ,(caaddr key-bind-pair))
+      )))
+
 (defun which-key-is-pseudo-bind-p (def)
   " Simple Test for the def part of a key-def from a keymap "
   (and (listp def) (eq (car def) 'which-key))
