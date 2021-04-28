@@ -1865,6 +1865,33 @@ Requires `which-key-compute-remaps' to be non-nil"
         (copy-sequence (symbol-name remap))
       binding)))
 
+(defun which-key--get-active-minor-modes ()
+  " Get a list of minor modes whose variable is true "
+  (let* ((minor-modes minor-mode-list)
+         (bound-vars (-filter #'boundp minor-modes))
+         (active-minor-modes (-filter #'symbol-value bound-vars))
+         )
+    active-minor-modes
+    )
+  )
+
+(defun which-key--consume-prefix-on-maps (prefix maps &optional state)
+ " Take a prefix vector, and a list of maps
+    lookup-key recursively, returning only keymaps
+  "
+ ;; Lookup evil state aux maps *as well* initially
+ (let* ((current (concatenate 'list (mapcar #'(lambda (x) (lookup-key x (vector state))) maps)
+                              maps))
+         )
+    (loop for pre across prefix do
+          (setq current (mapcar #'(lambda (x) (if (keymapp x)
+                                             (lookup-key x (key-description `(,pre)))))
+                                current))
+          )
+    (-filter #'keymapp current)
+    )
+  )
+
 (defun which-key--get-current-bindings (&optional prefix)
   "Generate a list of current active bindings."
   (let ((key-str-qt (regexp-quote (key-description prefix)))
