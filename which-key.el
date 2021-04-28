@@ -1758,33 +1758,37 @@ alists. Returns a list (key separator description)."
                                 'face 'which-key-separator-face))
         (local-map (current-local-map))
         new-list)
-    (dolist (key-binding unformatted)
-      (let* ((key (car key-binding))
-             (orig-desc (cdr key-binding))
-             (group (which-key--group-p orig-desc))
-             ;; At top-level prefix is nil
+    (dolist (key-bind-pair unformatted)
+      (let* ((key (car key-bind-pair))
              (keys (if prefix
                        (concat (key-description prefix) " " key)
                      key))
-             (local (eq (which-key--safe-lookup-key local-map (kbd keys))
-                        (intern orig-desc)))
+             (updated-key-bind-pair (which-key--maybe-replace (cons keys (cdr key-bind-pair)) prefix))
+             (kbd-repr (condition-case err
+                           (kbd keys)
+                         (error (kbd (format "<%s>" keys)))
+                         ))
+             (orig-desc (cdr updated-key-bind-pair))
+             (group (which-key--group-p orig-desc))
+             ;; At top-level prefix is nil
+             (local (if kbd-repr (eq (which-key--safe-lookup-key local-map kbd-repr)
+                                     (intern orig-desc))
+                      nil))
              (hl-face (which-key--highlight-face orig-desc))
-             (key-binding (which-key--maybe-replace (cons keys orig-desc) prefix))
              (final-desc (which-key--propertize-description
-                          (cdr key-binding) group local hl-face orig-desc)))
+                          orig-desc group local hl-face orig-desc))
+             (key-seq (if preserve-full-key
+                          (car updated-key-bind-pair)
+                        (which-key--extract-key (car updated-key-bind-pair))))
+             )
         (when final-desc
           (setq final-desc
                 (which-key--truncate-description
                  (which-key--maybe-add-docstring final-desc orig-desc))))
-        (when (consp key-binding)
-          (push
-           (list (which-key--propertize-key
-                  (if preserve-full-key
-                      (car key-binding)
-                    (which-key--extract-key (car key-binding))))
-                 sep-w-face
-                 final-desc)
-           new-list))))
+        (when (consp updated-key-bind-pair)
+          (push (list (which-key--propertize-key key-seq) sep-w-face final-desc)
+                new-list)))
+      )
     (nreverse new-list)))
 
 (defun which-key--get-keymap-bindings (keymap &optional all prefix)
