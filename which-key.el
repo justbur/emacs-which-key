@@ -1832,6 +1832,12 @@ ALL enables recursion into prefix-maps,
 PREFIX is used to accumulate those prefixes as the recursion progresses
 "
   (let (bindings)
+    ;; Prefer which-key bindings:
+    (if (keymapp (lookup-key keymap [which-key]))
+        (setq bindings (which-key--get-keymap-bindings (lookup-key keymap [which-key])
+                                                       all prefix))
+        )
+    ;; Then map over everything else to fill in gaps
     (map-keymap
      (lambda (ev def)
        (let* ((key (append prefix (list ev)))
@@ -1839,12 +1845,7 @@ PREFIX is used to accumulate those prefixes as the recursion progresses
               )
          (cond ((or (string-match-p which-key--ignore-non-evil-keys-regexp key-desc)
                     (eq ev 'menu-bar)))
-               ;; Important: if a which-key pseudo-map, handle here:
-               ((eq (car key) 'which-key)
-                (setq bindings (cl-remove-duplicates
-                                (append bindings
-                                        (which-key--get-keymap-bindings def all prefix))
-                                :test (lambda (a b) (string= (car a) (car b))))))
+               ((eq (car key) 'which-key))
                ;; extract evil keys corresponding to current state
                ((and (keymapp def)
                      (boundp 'evil-state)
