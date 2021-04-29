@@ -1932,7 +1932,8 @@ Requires `which-key-compute-remaps' to be non-nil"
          (safe-evil-state (if (boundp 'evil-state) evil-state nil))
          (evil-state-map-sym (if safe-evil-state (intern (format "evil-%s-state-map" safe-evil-state)) nil))
          ;; TODO evil local maps, override, intercept etc
-         (maps-from-symbols (mapcar #'symbol-value (list major-mode-map-sym evil-state-map-sym)))
+         ;; filtering by boundp guards against modes like fundamental-mode, which doesn't have a map:
+         (maps-from-symbols (mapcar #'symbol-value (-filter #'boundp (list major-mode-map-sym evil-state-map-sym))))
          ;; This gets maps like general-override-mode-map, so also gets doom-leader-map
          (active-minor-modes (which-key--get-active-minor-modes))
          (minor-mode-maps (mapcar #'(lambda (x) (alist-get x minor-mode-map-alist))
