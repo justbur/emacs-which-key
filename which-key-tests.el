@@ -39,10 +39,17 @@
       "C-c C-b" "mymap")
     (should (equal
              (which-key--maybe-replace '("C-c C-a" . "complete"))
+             '("C-c C-a" . "complete")))
+    (should (equal
+             (which-key--maybe-replace `("C-c C-a" . (which-key "mycomplete" complete)))
              '("C-c C-a" . "mycomplete")))
     (should (equal
+             (which-key--maybe-replace '("C-c C-b" . "mymap"))
+             '("C-c C-b" . "mymap")))
+    (should (equal
              (which-key--maybe-replace '("C-c C-b" . ""))
-             '("C-c C-b" . "mymap")))))
+             '("C-c C-b" . "")))))
+
 
 (ert-deftest which-key-test--prefix-declaration ()
   "Test `which-key-declare-prefixes' and
@@ -142,7 +149,7 @@
 (ert-deftest which-key-test--get-keymap-bindings ()
   (let ((map (make-sparse-keymap))
         which-key-replacement-alist)
-    (define-key map [which-key-a] '(which-key "blah"))
+    (define-key map "a" '(which-key "blah"))
     (define-key map "b" 'ignore)
     (define-key map "c" "c")
     (define-key map "dd" "dd")
@@ -151,7 +158,8 @@
     (should (equal
              (sort (which-key--get-keymap-bindings map)
                    (lambda (a b) (string-lessp (car a) (car b))))
-             '(("b" . "ignore")
+             '(("a" . (which-key "blah"))
+               ("b" . "ignore")
                ("c" . "c")
                ("d" . "Prefix Command")
                ("e" . "Prefix Command")
@@ -159,7 +167,8 @@
     (should (equal
              (sort (which-key--get-keymap-bindings map t)
                    (lambda (a b) (string-lessp (car a) (car b))))
-             '(("b" . "ignore")
+             '(("a" . (which-key "blah"))
+               ("b" . "ignore")
                ("c" . "c")
                ("d d" . "dd")
                ("e e e" . "eee")
