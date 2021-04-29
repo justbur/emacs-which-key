@@ -944,6 +944,29 @@ actually bound to write-file before performing the replacement."
           replacement (pop more))))
 (put 'which-key-add-keymap-based-replacements 'lisp-indent-function 'defun)
 
+(defun which-key-add-keymap-based-evil-replacement (state keymap key replacement &rest more)
+  " Alt implementation of which-key-add-keymap-based-replacements
+that uses evil-define-key, allowing state bindings
+
+Mainly this is useful for a keymap-based-replacement implementation
+of general-extended-def-:which-key
+"
+  (while key
+    (let* ((string (if (stringp replacement)
+                       replacement
+                     (car-safe replacement)))
+           (command (cdr-safe replacement))
+           (pseudo-key (which-key--pseudo-key (kbd key)))
+           (bind (which-key--build-pseudo-binding string command))
+           )
+      ;;(message "adding replacement: %s : %s" pseudo-key bind)
+      (if state
+          (evil-define-key* state keymap pseudo-key bind)
+        (define-key keymap pseudo-key bind)
+        ))
+    (setq key (pop more)
+          replacement (pop more))))
+
 ;;;###autoload
 (defun which-key-add-key-based-replacements
     (key-sequence replacement &rest more)
