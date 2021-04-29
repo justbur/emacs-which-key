@@ -1916,7 +1916,7 @@ Requires `which-key-compute-remaps' to be non-nil"
  (let* ((current (concatenate 'list (mapcar #'(lambda (x) (lookup-key x (vector (intern (format "%s-state" state))))) maps)
                               maps))
          )
-    (loop for pre across prefix do
+    (cl-loop for pre across prefix do
           (setq current (mapcar #'(lambda (x) (if (keymapp x)
                                              (lookup-key x (vector pre))))
                                 current))
@@ -1944,13 +1944,13 @@ Requires `which-key-compute-remaps' to be non-nil"
          (ignore-bindings '("self-insert-command" "ignore"
                             "ignore-event" "company-ignore"))
          unformatted bindings)
+
     ;; Actually get the bindings:
     (setq unformatted (mapcar #'which-key--get-keymap-bindings prefix-handled))
-
     ;; Loop over all found bindings, filtering as necessary
     ;; earlier maps take precedence, so ordering of maps may be needed
     ;; TODO this would be better to do later, so as to only use maybe-replace once
-    (loop for bind-pair in (-flatten-n 1 (-filter #'identity unformatted)) do
+    (cl-loop for bind-pair in (-flatten-n 1 (-filter #'identity unformatted)) do
           (let* ((formatted (which-key--maybe-replace bind-pair prefix))
                  (key (car formatted))
                  (binding (cdr formatted))
