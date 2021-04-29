@@ -1879,12 +1879,12 @@ Requires `which-key-compute-remaps' to be non-nil"
     lookup-key recursively, returning only keymaps
   "
  ;; Lookup evil state aux maps *as well* initially
- (let* ((current (concatenate 'list (mapcar #'(lambda (x) (lookup-key x (vector state))) maps)
+ (let* ((current (concatenate 'list (mapcar #'(lambda (x) (lookup-key x (vector (intern (format "%s-state" state))))) maps)
                               maps))
          )
     (loop for pre across prefix do
           (setq current (mapcar #'(lambda (x) (if (keymapp x)
-                                             (lookup-key x (key-description `(,pre)))))
+                                             (lookup-key x (vector pre))))
                                 current))
           )
     (-filter #'keymapp current)
