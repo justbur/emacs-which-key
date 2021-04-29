@@ -939,7 +939,7 @@ actually bound to write-file before performing the replacement."
                     (car-safe replacement)))
           (command (cdr-safe replacement)))
       (define-key keymap (which-key--pseudo-key (kbd key))
-        `(which-key ,(cons string command))))
+        (which-key--build-pseudo-binding string command)))
     (setq key (pop more)
           replacement (pop more))))
 (put 'which-key-add-keymap-based-replacements 'lisp-indent-function 'defun)
@@ -1491,6 +1491,11 @@ local bindings coming first. Within these categories order using
            (or (null binding-regexp)
                (string-match-p binding-regexp
                                (cdr key-binding)))))))
+
+
+(defun which-key--build-pseudo-binding (desc bind)
+  " Build a pseudo-binding list for adding to a keymap "
+  `(which-key ,desc ,bind))
 
 (defun which-key--get-pseudo-binding (key-bind-pair &optional prefix)
   (let* ((key (car key-bind-pair))
