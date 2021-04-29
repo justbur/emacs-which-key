@@ -1521,16 +1521,21 @@ local bindings coming first. Within these categories order using
   `(which-key ,desc ,bind))
 
 (defun which-key--get-pseudo-binding (key-bind-pair &optional prefix)
+  " Could be called *strip*-pseudo-binding.
+given a pseudo binding as (KEY . BIND) where BIND
+is (which-key DESC FN), returns (KEY . DESC)
+
+PREFIX is deprecated
+"
   (let* ((key (car key-bind-pair))
-         (is-pseudo-binding (which-key-is-pseudo-bind-p (cdr key-bind-pair))))
+         (bind (cdr key-bind-pair))
+         (is-pseudo-binding (which-key-is-pseudo-bind-p bind)))
     (when is-pseudo-binding
-      `(,key . ,(caaddr key-bind-pair))
-      )))
+      `(,key . ,(cadr bind)))))
 
 (defun which-key-is-pseudo-bind-p (def)
   " Simple Test for the def part of a key-def from a keymap "
-  (and (listp def) (eq (car def) 'which-key))
-)
+  (and (listp def) (eq (car def) 'which-key)))
 
 (defsubst which-key--replace-in-binding (key-binding repl)
   (cond ((or (not (consp repl)) (null (cdr repl)))
@@ -1956,9 +1961,7 @@ Requires `which-key-compute-remaps' to be non-nil"
                      (push (cons key (which-key--compute-binding binding))
                            bindings))))))
 
-    (nreverse bindings)
-    )
-  )
+    (nreverse bindings)))
 
 
 (defun which-key--get-bindings (&optional prefix keymap filter recursive)
