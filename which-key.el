@@ -1408,7 +1408,7 @@ width) in lines and characters respectively."
             ((or apr? bpr?) apr?)
             (t (which-key--string< a b alpha))))))
 
-(defsubst which-key-key-order-alpha (acons bcons)
+(defsubst which-key-key-order-alpha (aseq bseq)
   "Order key descriptions A and B.
 Order is lexicographic within a \"class\", where the classes and
 the ordering of classes are listed below.
@@ -1416,54 +1416,54 @@ the ordering of classes are listed below.
 special (SPC,TAB,...) < single char < mod (C-,M-,...) < other.
 Sorts single characters alphabetically with lowercase coming
 before upper."
-  (which-key--key-description< (car acons) (car bcons) t))
+  (which-key--key-description< (nth 0 aseq) (nth 0 bseq) t))
 
-(defsubst which-key-key-order (acons bcons)
+(defsubst which-key-key-order (aseq bseq)
   "Order key descriptions A and B.
 Order is lexicographic within a \"class\", where the classes and
 the ordering of classes are listed below.
 
 special (SPC,TAB,...) < single char < mod (C-,M-,...) < other."
-  (which-key--key-description< (car acons) (car bcons)))
+  (which-key--key-description< (nth 0 aseq) (nth 0 bseq)))
 
-(defsubst which-key-description-order (acons bcons)
+(defsubst which-key-description-order (aseq bseq)
   "Order descriptions of A and B.
 Uses `string-lessp' after applying lowercase."
-  (string-lessp (downcase (nth 2 acons)) (downcase (nth 2 bcons))))
+  (string-lessp (downcase (nth 2 aseq)) (downcase (nth 2 bseq))))
 
 (defsubst which-key--group-p (description)
   (or (string-match-p "^\\(group:\\|Prefix\\)" description)
       (keymapp (intern description))))
 
-(defun which-key-prefix-then-key-order (acons bcons)
+(defun which-key-prefix-then-key-order (aseq bseq)
   "Order first by whether A and/or B is a prefix with no prefix
 coming before a prefix. Within these categories order using
 `which-key-key-order'."
-  (let ((apref? (which-key--group-p (nth 2 acons)))
-        (bpref? (which-key--group-p (nth 2 bcons))))
+  (let ((apref? (which-key--group-p (nth 2 aseq)))
+        (bpref? (which-key--group-p (nth 2 bseq))))
     (if (not (eq apref? bpref?))
         (and (not apref?) bpref?)
-      (which-key-key-order acons bcons))))
+      (which-key-key-order aseq bseq))))
 
-(defun which-key-prefix-then-key-order-reverse (acons bcons)
+(defun which-key-prefix-then-key-order-reverse (aseq bseq)
   "Order first by whether A and/or B is a prefix with prefix
 coming before a prefix. Within these categories order using
 `which-key-key-order'."
-  (let ((apref? (which-key--group-p (nth 2 acons)))
-        (bpref? (which-key--group-p (nth 2 bcons))))
+  (let ((apref? (which-key--group-p (nth 2 aseq)))
+        (bpref? (which-key--group-p (nth 2 bseq))))
     (if (not (eq apref? bpref?))
         (and apref? (not bpref?))
-      (which-key-key-order acons bcons))))
+      (which-key-key-order aseq bseq))))
 
-(defun which-key-local-then-key-order (acons bcons)
+(defun which-key-local-then-key-order (aseq bseq)
   "Order first by whether A and/or B is a local binding with
 local bindings coming first. Within these categories order using
 `which-key-key-order'."
-  (let ((aloc? (which-key--local-binding-p acons))
-        (bloc? (which-key--local-binding-p bcons)))
+  (let ((aloc? (which-key--local-binding-p aseq))
+        (bloc? (which-key--local-binding-p bseq)))
     (if (not (eq aloc? bloc?))
         (and aloc? (not bloc?))
-      (which-key-key-order acons bcons))))
+      (which-key-key-order aseq bseq))))
 
 ;;; Functions for retrieving and formatting keys
 
