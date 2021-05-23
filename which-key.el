@@ -1429,7 +1429,7 @@ special (SPC,TAB,...) < single char < mod (C-,M-,...) < other."
 (defsubst which-key-description-order (acons bcons)
   "Order descriptions of A and B.
 Uses `string-lessp' after applying lowercase."
-  (string-lessp (downcase (cdr acons)) (downcase (cdr bcons))))
+  (string-lessp (downcase (nth 2 acons)) (downcase (nth 2 bcons))))
 
 (defsubst which-key--group-p (description)
   (or (string-match-p "^\\(group:\\|Prefix\\)" description)
@@ -1439,8 +1439,8 @@ Uses `string-lessp' after applying lowercase."
   "Order first by whether A and/or B is a prefix with no prefix
 coming before a prefix. Within these categories order using
 `which-key-key-order'."
-  (let ((apref? (which-key--group-p (cdr acons)))
-        (bpref? (which-key--group-p (cdr bcons))))
+  (let ((apref? (which-key--group-p (nth 2 acons)))
+        (bpref? (which-key--group-p (nth 2 bcons))))
     (if (not (eq apref? bpref?))
         (and (not apref?) bpref?)
       (which-key-key-order acons bcons))))
@@ -1449,8 +1449,8 @@ coming before a prefix. Within these categories order using
   "Order first by whether A and/or B is a prefix with prefix
 coming before a prefix. Within these categories order using
 `which-key-key-order'."
-  (let ((apref? (which-key--group-p (cdr acons)))
-        (bpref? (which-key--group-p (cdr bcons))))
+  (let ((apref? (which-key--group-p (nth 2 acons)))
+        (bpref? (which-key--group-p (nth 2 bcons))))
     (if (not (eq apref? bpref?))
         (and apref? (not bpref?))
       (which-key-key-order acons bcons))))
@@ -1573,7 +1573,7 @@ which are strings. KEY is of the form produced by `key-binding'."
 (defun which-key--local-binding-p (keydesc)
   (eq (which-key--safe-lookup-key
        (current-local-map) (kbd (which-key--current-key-string (car keydesc))))
-      (intern (cdr keydesc))))
+      (intern (nth 2 keydesc))))
 
 (defun which-key--map-binding-p (map keydesc)
   "Does MAP contain KEYDESC = (key . binding)?"
@@ -1935,10 +1935,10 @@ non-nil, then bindings are collected recursively for all prefixes."
                  (which-key--get-current-bindings prefix)))))
     (when filter
       (setq unformatted (cl-remove-if-not filter unformatted)))
-    (when which-key-sort-order
-      (setq unformatted
-            (sort unformatted which-key-sort-order)))
-    (which-key--format-and-replace unformatted prefix recursive)))
+    (setq formatted (which-key--format-and-replace unformatted prefix recursive))
+      (when which-key-sort-order
+        (setq formatted (sort formatted which-key-sort-order)))
+      formatted))
 
 ;;; Functions for laying out which-key buffer pages
 
