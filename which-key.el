@@ -1771,7 +1771,10 @@ alists. Returns a list (key separator description)."
              (local (eq (which-key--safe-lookup-key local-map (kbd keys))
                         (intern orig-desc)))
              (hl-face (which-key--highlight-face orig-desc))
-             (key-binding (which-key--maybe-replace (cons keys orig-desc) prefix))
+             (key-binding (if (and (not prefix)
+                                   which-key-enable-extended-define-key)
+                              key-binding
+                            (which-key--maybe-replace (cons keys orig-desc) prefix)))
              (final-desc (which-key--propertize-description
                           (cdr key-binding) group local hl-face orig-desc)))
         (when final-desc
