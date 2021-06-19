@@ -1790,55 +1790,67 @@ alists. Returns a list (key separator description)."
            new-list))))
     (nreverse new-list)))
 
-(defun which-key--get-keymap-bindings (keymap &optional all prefix)
-  "Retrieve top-level bindings from KEYMAP.
+(defun which-key--get-keymap-bindings
+    (keymap &optional all prefix ignore-evil exclude)
+  "Retrieve bindings from KEYMAP.
 If ALL is non-nil, get all bindings, not just the top-level
-ones. PREFIX is for internal use and should not be used."
-  (let (bindings)
-    (map-keymap
-     (lambda (ev def)
-       (let* ((key (append prefix (list ev)))
-              (key-desc (key-description key)))
-         (cond ((or (string-match-p
-                     which-key--ignore-non-evil-keys-regexp key-desc)
-                    (eq ev 'menu-bar)))
-               ;; extract evil keys corresponding to current state
-               ((and (keymapp def)
-                     (boundp 'evil-state)
-                     (bound-and-true-p evil-local-mode)
-                     (string-match-p (format "<%s-state>$" evil-state) key-desc))
-                (setq bindings
-                      ;; this function keeps the latter of the two duplicates
-                      ;; which will be the evil binding
-                      (cl-remove-duplicates
-                       (append bindings
-                               (which-key--get-keymap-bindings def all prefix))
-                       :test (lambda (a b) (string= (car a) (car b))))))
-               ((and (keymapp def)
-                     (string-match-p which-key--evil-keys-regexp key-desc)))
-               ((and (keymapp def)
-                     (or all
-                         ;; event 27 is escape, so this will pick up meta
-                         ;; bindings and hopefully not too much more
-                         (and (numberp ev) (= ev 27))))
-                (setq bindings
-                      (append bindings
-                              (which-key--get-keymap-bindings def t key))))
-               (t
-                (when def
-                  (cl-pushnew
-                   (cons key-desc
-                         (cond
-                          ((keymapp def) "Prefix Command")
-                          ((symbolp def) (copy-sequence (symbol-name def)))
-                          ((eq 'lambda (car-safe def)) "lambda")
-                          ((eq 'menu-item (car-safe def)) "menu-item")
-                          ((stringp def) def)
-                          ((vectorp def) (key-description def))
-                          ((consp def) (car def))
-                          (t "unknown")))
-                   bindings :test (lambda (a b) (string= (car a) (car b)))))))))
-     keymap)
+ones. If PREFIX is non-nil, only get bindings starting with this
+PREFIX. If IGNORE-EVIL is non-nil, don't parse evil
+bindings. EXCLUDE is an alist of bindings that will be combined
+with the bindings from KEYMAP. The bindings in EXCLUDE take
+precedence over those in KEYMAP."
+  (let* ((bindings exclude)
+         (map (if prefix (lookup-key keymap prefix) keymap)))
+    (when (keymapp map)
+      (map-keymap
+       (lambda (ev def)
+         (let* ((key (append prefix (list ev)))
+                (key-desc (key-description key)))
+           (cond ((assoc key-desc exclude))
+                 ((or (string-match-p
+                       which-key--ignore-non-evil-keys-regexp key-desc)
+                      (eq ev 'menu-bar)))
+                 ;; extract evil keys corresponding to current state
+                 ((and (null ignore-evil)
+                       (keymapp def)
+                       (boundp 'evil-state)
+                       (bound-and-true-p evil-local-mode)
+                       (string-match-p (format "<%s-state>$" evil-state) key-desc))
+                  (setq bindings
+                        ;; this function keeps the latter of the two duplicates
+                        ;; which will be the evil binding
+                        (cl-remove-duplicates
+                         (append bindings
+                                 (which-key--get-keymap-bindings
+                                  keymap all (vconcat key) ignore-evil exclude))
+                         :test (lambda (a b) (string= (car a) (car b))))))
+                 ((and (keymapp def)
+                       (string-match-p which-key--evil-keys-regexp key-desc)))
+                 ((and (keymapp def)
+                       (or all
+                           ;; event 27 is escape, so this will pick up meta
+                           ;; bindings and hopefully not too much more
+                           (and (numberp ev) (= ev 27))))
+                  (setq bindings
+                        (append bindings
+                                (which-key--get-keymap-bindings
+                                 keymap t (vconcat key) ignore-evil exclude))))
+                 (t
+                  (when def
+                    (cl-pushnew
+                     (cons key-desc
+                           (cond
+                            ((keymapp def) "Prefix Command")
+                            ((symbolp def) (copy-sequence (symbol-name def)))
+                            ((eq 'lambda (car-safe def)) "lambda")
+                            ((eq 'menu-item (car-safe def))
+                             (keymap--menu-item-binding def))
+                            ((stringp def) def)
+                            ((vectorp def) (key-description def))
+                            ((consp def) (car def))
+                            (t "unknown")))
+                     bindings :test (lambda (a b) (string= (car a) (car b)))))))))
+       map))
     bindings))
 
 (defun which-key--compute-binding (binding)
@@ -1853,74 +1865,10 @@ Requires `which-key-compute-remaps' to be non-nil"
 
 (defun which-key--get-current-bindings (&optional prefix)
   "Generate a list of current active bindings."
-  (let ((key-str-qt (regexp-quote (key-description prefix)))
-        (buffer (current-buffer))
-        (ignore-bindings '("self-insert-command" "ignore"
-                           "ignore-event" "company-ignore"))
-        (ignore-sections-regexp
-         (eval-when-compile
-           (regexp-opt '("Key translations" "Function key map translations"
-                         "Input decoding map translations")))))
-    (with-temp-buffer
-      (setq-local indent-tabs-mode t)
-      (setq-local tab-width 8)
-      (describe-buffer-bindings buffer prefix)
-      (goto-char (point-min))
-      (let ((header-p (not (= (char-after) ?\f)))
-            bindings header)
-        (while (not (eobp))
-          (cond
-           (header-p
-            (setq header (buffer-substring-no-properties
-                          (point)
-                          (line-end-position)))
-            (setq header-p nil)
-            (forward-line 3))
-           ((= (char-after) ?\f)
-            (setq header-p t))
-           ((looking-at "^[ \t]*$"))
-           ((or (not (string-match-p ignore-sections-regexp header)) prefix)
-            (let ((binding-start (save-excursion
-                                   (and (re-search-forward "\t+" nil t)
-                                        (match-end 0))))
-                  key binding)
-              (when binding-start
-                (setq key (buffer-substring-no-properties
-                           (point) binding-start))
-                (setq binding (buffer-substring-no-properties
-                               binding-start
-                               (line-end-position)))
-                (save-match-data
-                  (cond
-                   ((member binding ignore-bindings))
-                   ((string-match-p which-key--ignore-keys-regexp key))
-                   ((and prefix
-                         (string-match (format "^%s[ \t]\\([^ \t]+\\)[ \t]+$"
-                                               key-str-qt) key))
-                    (unless (assoc-string (match-string 1 key) bindings)
-                      (push (cons (match-string 1 key)
-                                  (which-key--compute-binding binding))
-                            bindings)))
-                   ((and prefix
-                         (string-match
-                          (format
-                           "^%s[ \t]\\([^ \t]+\\) \\.\\. %s[ \t]\\([^ \t]+\\)[ \t]+$"
-                           key-str-qt key-str-qt) key))
-                    (let ((stripped-key (concat (match-string 1 key)
-                                                " \.\. "
-                                                (match-string 2 key))))
-                      (unless (assoc-string stripped-key bindings)
-                        (push (cons stripped-key
-                                    (which-key--compute-binding binding))
-                              bindings))))
-                   ((string-match
-                     "^\\([^ \t]+\\|[^ \t]+ \\.\\. [^ \t]+\\)[ \t]+$" key)
-                    (unless (assoc-string (match-string 1 key) bindings)
-                      (push (cons (match-string 1 key)
-                                  (which-key--compute-binding binding))
-                            bindings)))))))))
-          (forward-line))
-        (nreverse bindings)))))
+  (let (bindings)
+    (dolist (map (current-active-maps t) bindings)
+      (setq bindings
+            (which-key--get-keymap-bindings map nil prefix t bindings)))))
 
 (defun which-key--get-bindings (&optional prefix keymap filter recursive)
   "Collect key bindings.
