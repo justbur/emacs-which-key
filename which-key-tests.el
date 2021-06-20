@@ -237,5 +237,23 @@
                            'which-key-description-order))
         '("p" "C-a" "SPC" "b" "B" "a" "A"))))))
 
+(ert-deftest which-key-test--c-x-map ()
+  "Test retrieval of keys from C-x map two ways."
+  (let ((wk-c-x-bindings-1
+         (which-key--get-keymap-bindings global-map nil (kbd "C-x")))
+        (wk-c-x-bindings-2 (which-key--get-keymap-bindings ctl-x-map)))
+    (map-keymap
+     (lambda (ev def)
+       (let* ((long-key (key-description (list ev) "\C-x"))
+              (short-key (key-description (list ev)))
+              (def-name (cond ((keymapp def) "Prefix Command")
+                              ((symbolp def) (symbol-name def))))
+              (def-1 (cdr-safe (assoc long-key wk-c-x-bindings-1)))
+              (def-2 (cdr-safe (assoc short-key wk-c-x-bindings-2))))
+         (should (or (and (numberp ev) (= 27) (keymapp def))
+                     (and (string= def-name def-1)
+                          (string= def-name def-2))))))
+     ctl-x-map)))
+
 (provide 'which-key-tests)
 ;;; which-key-tests.el ends here
