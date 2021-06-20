@@ -1790,15 +1790,27 @@ alists. Returns a list (key separator description)."
            new-list))))
     (nreverse new-list)))
 
+(defun which-key--compute-binding (binding)
+  "Replace BINDING with remapped binding if it exists.
+
+Requires `which-key-compute-remaps' to be non-nil"
+  (let (remap)
+    (if (and which-key-compute-remaps
+             (setq remap (command-remapping (intern binding))))
+        (copy-sequence (symbol-name remap))
+      binding)))
+
 (defun which-key--get-keymap-bindings
-    (keymap &optional all prefix ignore-evil exclude)
+    (keymap
+     &optional all prefix ignore-evil exclude ignore-commands)
   "Retrieve bindings from KEYMAP.
 If ALL is non-nil, get all bindings, not just the top-level
 ones. If PREFIX is non-nil, only get bindings starting with this
 PREFIX. If IGNORE-EVIL is non-nil, don't parse evil
 bindings. EXCLUDE is an alist of bindings that will be combined
 with the bindings from KEYMAP. The bindings in EXCLUDE take
-precedence over those in KEYMAP."
+precedence over those in KEYMAP. IGNORE-COMMANDS is a list of
+commands to ingore in KEYMAP."
   (let* ((bindings exclude)
          (map (if prefix (lookup-key keymap prefix) keymap)))
     (when (keymapp map)
@@ -1807,6 +1819,9 @@ precedence over those in KEYMAP."
          (let* ((key (append prefix (list ev)))
                 (key-desc (key-description key)))
            (cond ((assoc key-desc exclude))
+                 ((and (not (null ignore-commands))
+                       (symbolp def)
+                       (memq def ignore-commands)))
                  ((or (string-match-p
                        which-key--ignore-non-evil-keys-regexp key-desc)
                       (eq ev 'menu-bar)))
@@ -1841,7 +1856,8 @@ precedence over those in KEYMAP."
                      (cons key-desc
                            (cond
                             ((keymapp def) "Prefix Command")
-                            ((symbolp def) (copy-sequence (symbol-name def)))
+                            ((symbolp def) (which-key--compute-binding
+                                            (copy-sequence (symbol-name def))))
                             ((eq 'lambda (car-safe def)) "lambda")
                             ((eq 'menu-item (car-safe def))
                              (keymap--menu-item-binding def))
@@ -1849,26 +1865,18 @@ precedence over those in KEYMAP."
                             ((vectorp def) (key-description def))
                             ((consp def) (car def))
                             (t "unknown")))
-                     bindings :test (lambda (a b) (string= (car a) (car b)))))))))
+                     bindings
+                     :test (lambda (a b) (string= (car a) (car b)))))))))
        map))
     bindings))
 
-(defun which-key--compute-binding (binding)
-  "Replace BINDING with remapped binding if it exists.
-
-Requires `which-key-compute-remaps' to be non-nil"
-  (let (remap)
-    (if (and which-key-compute-remaps
-             (setq remap (command-remapping (intern binding))))
-        (copy-sequence (symbol-name remap))
-      binding)))
-
 (defun which-key--get-current-bindings (&optional prefix)
   "Generate a list of current active bindings."
-  (let (bindings)
+  (let ((ignore '(self-insert-command ignore ignore-event company-ignore))
+        bindings)
     (dolist (map (current-active-maps t) bindings)
-      (setq bindings
-            (which-key--get-keymap-bindings map nil prefix t bindings)))))
+      (setq bindings (which-key--get-keymap-bindings
+                      map nil prefix t bindings ignore)))))
 
 (defun which-key--get-bindings (&optional prefix keymap filter recursive)
   "Collect key bindings.
