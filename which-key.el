@@ -1492,9 +1492,9 @@ local bindings coming first. Within these categories order using
                (string-match-p binding-regexp
                                (cdr key-binding)))))))
 
-(defun which-key--get-pseudo-binding (key-binding &optional prefix)
+(defun which-key--get-pseudo-binding (key-binding)
   (let* ((key (kbd (car key-binding)))
-         (pseudo-binding (key-binding (which-key--pseudo-key key prefix))))
+         (pseudo-binding (key-binding (which-key--pseudo-key key))))
     (when pseudo-binding
       (let* ((command-replacement (cadr pseudo-binding))
              (pseudo-desc (car command-replacement))
@@ -1537,11 +1537,11 @@ local bindings coming first. Within these categories order using
         (setq key-binding (which-key--replace-in-binding key-binding repl))))
     (when found `(replaced . ,key-binding))))
 
-(defun which-key--maybe-replace (key-binding &optional prefix)
+(defun which-key--maybe-replace (key-binding)
   "Use `which-key--replacement-alist' to maybe replace KEY-BINDING.
 KEY-BINDING is a cons cell of the form \(KEY . BINDING\) each of
 which are strings. KEY is of the form produced by `key-binding'."
-  (let* ((pseudo-binding (which-key--get-pseudo-binding key-binding prefix)))
+  (let* ((pseudo-binding (which-key--get-pseudo-binding key-binding)))
     (if pseudo-binding
         pseudo-binding
       (let* ((replacer (if which-key-allow-multiple-replacements
@@ -1751,7 +1751,7 @@ return the docstring."
           (t
            (format "%s %s" current docstring)))))
 
-(defun which-key--format-and-replace (unformatted &optional prefix preserve-full-key)
+(defun which-key--format-and-replace (unformatted &optional preserve-full-key)
   "Take a list of (key . desc) cons cells in UNFORMATTED, add
 faces and perform replacements according to the three replacement
 alists. Returns a list (key separator description)."
@@ -1764,14 +1764,10 @@ alists. Returns a list (key separator description)."
       (let* ((key (car key-binding))
              (orig-desc (cdr key-binding))
              (group (which-key--group-p orig-desc))
-             ;; At top-level prefix is nil
-             (keys (if prefix
-                       (concat (key-description prefix) " " key)
-                     key))
-             (local (eq (which-key--safe-lookup-key local-map (kbd keys))
+             (local (eq (which-key--safe-lookup-key local-map (kbd key))
                         (intern orig-desc)))
              (hl-face (which-key--highlight-face orig-desc))
-             (key-binding (which-key--maybe-replace (cons keys orig-desc) prefix))
+             (key-binding (which-key--maybe-replace (cons key orig-desc)))
              (final-desc (which-key--propertize-description
                           (cdr key-binding) group local hl-face orig-desc)))
         (when final-desc
@@ -1879,10 +1875,10 @@ commands to ingore in KEYMAP."
 
 (defun which-key--get-bindings (&optional prefix keymap filter recursive)
   "Collect key bindings.
-If KEYMAP is nil, collect from current buffer using the current
-key sequence as a prefix. Otherwise, collect from KEYMAP. FILTER
-is a function to use to filter the bindings. If RECURSIVE is
-non-nil, then bindings are collected recursively for all prefixes."
+If KEYMAP is nil, collect from current buffer using the prefix
+PREFIX. Otherwise, collect from KEYMAP. FILTER is a function to
+use to filter the bindings. If RECURSIVE is non-nil, then
+bindings are collected recursively for all prefixes."
   (let* ((unformatted
           (cond ((keymapp keymap)
                  (which-key--get-keymap-bindings keymap recursive))
@@ -1895,7 +1891,7 @@ non-nil, then bindings are collected recursively for all prefixes."
     (when which-key-sort-order
       (setq unformatted
             (sort unformatted which-key-sort-order)))
-    (which-key--format-and-replace unformatted prefix recursive)))
+    (which-key--format-and-replace unformatted recursive)))
 
 ;;; Functions for laying out which-key buffer pages
 
