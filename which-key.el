@@ -153,7 +153,6 @@ remapped given the currently active keymaps."
 (defcustom which-key-replacement-alist
   (delq nil
         `(((nil . "Prefix Command") . (nil . "prefix"))
-          ((nil . "\\`\\?\\?\\'") . (nil . "lambda"))
           ((nil . "which-key-show-next-page-no-cycle") . (nil . "wk next pg"))
           ,@(unless which-key-dont-use-unicode
               '((("<left>") . ("←"))
