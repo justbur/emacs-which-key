@@ -731,13 +731,26 @@ problems at github.")
 (defvar which-key--god-mode-key-string nil
   "Holds key string to use for god-mode support.")
 
-(defadvice god-mode-lookup-command
-    (around which-key--god-mode-lookup-command-advice disable)
-  (setq which-key--god-mode-key-string (ad-get-arg 0))
+(defun which-key--god-mode-lookup-command-advice (orig-fn &rest args)
+  "Advice function for `god-mode-lookup-command'."
+  (setq which-key--god-mode-key-string (car args))
   (unwind-protect
-      ad-do-it
+      (apply orig-fn args)
     (when (bound-and-true-p which-key-mode)
       (which-key--hide-popup))))
+
+(defun which-key--god-mode-help-char-dispatch (orig-fn &rest args)
+  "Advice function for `god-mode-help-char-dispatch'."
+  (if (not (which-key--popup-showing-p))
+      (apply orig-fn args)
+    (which-key--stop-timer)
+    (which-key-C-h-dispatch)
+    ;; Discard last prefix input. `discard-input' cannot be used
+    ;; here as it ends any macro being defined.
+    (setq unread-command-events nil)
+    ;; Return keys entered so far to prevent quitting current key
+    ;; sequence.
+    (cadr args)))
 
 (defun which-key-enable-god-mode-support (&optional disable)
   "Enable support for god-mode if non-nil.
@@ -746,14 +759,15 @@ now. Please report any problems at github. If DISABLE is non-nil
 disable support."
   (interactive "P")
   (setq which-key--god-mode-support-enabled (null disable))
-  (if disable
-      (ad-disable-advice
-       'god-mode-lookup-command
-       'around 'which-key--god-mode-lookup-command-advice)
-    (ad-enable-advice
-     'god-mode-lookup-command
-     'around 'which-key--god-mode-lookup-command-advice))
-  (ad-activate 'god-mode-lookup-command))
+  (cond (which-key--god-mode-support-enabled
+         (advice-add 'god-mode-lookup-command
+                     :around #'which-key--god-mode-lookup-command-advice)
+         (advice-add 'god-mode-help-char-dispatch
+                     :around #'which-key--god-mode-help-char-dispatch))
+        (t (advice-remove 'god-mode-lookup-command
+                          #'which-key--god-mode-lookup-command-advice)
+           (advice-remove 'god-mode-help-char-dispatch
+                          #'which-key--god-mode-help-char-dispatch))))
 
 ;;; Mode
 
