@@ -407,6 +407,17 @@ Note that `which-key-idle-delay' should be set before turning on
   :group 'which-key
   :type 'boolean)
 
+(defcustom which-key-format-desc-first 'nil
+  "When set to non-nil, for each key binding print the
+description followed by the key, as:
+  find-find -> C-x C-f
+
+The default, nil, is to print the key first, as:
+  C-x C-f -> find-file
+"
+  :group 'which-key
+  :type 'boolean)
+
 (defvar which-key-C-h-map
   (let ((map (make-sparse-keymap)))
     (dolist (bind `(("\C-a" . which-key-abort)
@@ -1835,6 +1846,16 @@ element in each list element of KEYS."
    (lambda (x y) (max x (which-key--string-width (nth index y))))
    keys :initial-value 0))
 
+(defun which-key--print-desc-first (key-width desc-width binding)
+  (format (concat "%-" (int-to-string desc-width)
+                  "s%s%-" (int-to-string key-width) "s")
+          (nth 2 binding) (nth 1 binding) (nth 0 binding)))
+
+(defun which-key--print-key-first (key-width desc-width binding)
+  (format (concat "%" (int-to-string key-width)
+                  "s%s%-" (int-to-string desc-width) "s")
+          (nth 0 binding) (nth 1 binding) (nth 2 binding)))
+
 (defun which-key--pad-column (col-keys)
   "Take a column of (key separator description) COL-KEYS,
 calculate the max width in the column and pad all cells out to
@@ -1843,12 +1864,13 @@ that width."
                             (which-key--max-len col-keys 0)))
          (col-sep-width  (which-key--max-len col-keys 1))
          (col-desc-width (which-key--max-len col-keys 2))
-         (col-width      (+ 1 col-key-width col-sep-width col-desc-width)))
+         (col-width      (+ 1 col-key-width col-sep-width col-desc-width))
+         (formatter      (if which-key-format-desc-first
+                             #'which-key--print-desc-first
+                           #'which-key--print-key-first)))
     (cons col-width
-          (mapcar (lambda (k)
-                    (format (concat "%" (int-to-string col-key-width)
-                                    "s%s%-" (int-to-string col-desc-width) "s")
-                            (nth 0 k) (nth 1 k) (nth 2 k)))
+          (mapcar (apply-partially
+                   formatter col-key-width col-desc-width)
                   col-keys))))
 
 (defun which-key--partition-list (n list)
