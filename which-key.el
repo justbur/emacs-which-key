@@ -102,6 +102,11 @@ or if the text is below `which-key-max-description-length'"
   :type '(choice (alist :key-type string :value-type string)
 		 (nil :tag "Disabled")))
 
+(defcustom which-key-min-column-description-width 0
+  "Every column should at least have this width."
+  :group 'which-key
+  :type 'integer)
+
 (defcustom which-key-add-column-padding 0
   "Additional padding (number of spaces) to add to the left of
 each key column."
@@ -134,6 +139,14 @@ of the which-key popup."
   "Separator to use between key and description. Default is \" →
 \", unless `which-key-dont-use-unicode' is non nil, in which case
 the default is \" : \"."
+  :group 'which-key
+  :type 'string)
+
+(defcustom which-key-elipsis
+  (if which-key-dont-use-unicode ".." "…")
+  "Elipsis to use when truncating. Default is \"…\", unless
+`which-key-dont-use-unicode' is non nil, in which case
+the default is \"..\"."
   :group 'which-key
   :type 'string)
 
@@ -1598,7 +1611,7 @@ If KEY contains any \"special keys\" defined in
 (defsubst which-key--truncate-description (desc)
   "Truncate DESC description to `which-key-max-description-length'."
   (let* ((last-face (get-text-property (1- (length desc)) 'face desc))
-         (dots (which-key--propertize ".." 'face last-face)))
+         (dots (which-key--propertize which-key-elipsis 'face last-face)))
     (if (and which-key-max-description-length
              (> (length desc) which-key-max-description-length))
         (concat (substring desc 0 which-key-max-description-length) dots)
@@ -1867,12 +1880,12 @@ non-nil, then bindings are collected recursively for all prefixes."
          (rows (apply #'cl-mapcar #'list padded)))
     (mapconcat (lambda (row) (mapconcat #'identity row " ")) rows "\n")))
 
-(defsubst which-key--max-len (keys index)
+(defsubst which-key--max-len (keys index &optional initial-value)
   "Internal function for finding the max length of the INDEX
 element in each list element of KEYS."
   (cl-reduce
    (lambda (x y) (max x (which-key--string-width (nth index y))))
-   keys :initial-value 0))
+   keys :initial-value (if initial-value initial-value 0)))
 
 (defun which-key--pad-column (col-keys)
   "Take a column of (key separator description) COL-KEYS,
@@ -1881,7 +1894,8 @@ that width."
   (let* ((col-key-width  (+ which-key-add-column-padding
                             (which-key--max-len col-keys 0)))
          (col-sep-width  (which-key--max-len col-keys 1))
-         (col-desc-width (which-key--max-len col-keys 2))
+         (col-desc-width (which-key--max-len
+                          col-keys 2 which-key-min-column-description-width))
          (col-width      (+ 1 col-key-width col-sep-width col-desc-width)))
     (cons col-width
           (mapcar (lambda (k)
