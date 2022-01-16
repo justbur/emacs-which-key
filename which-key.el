@@ -1281,7 +1281,7 @@ width) in lines and characters respectively."
    ;; height
    (if (member which-key-side-window-location '(left right))
        ;; 1 is a kludge to make sure there is no overlap
-       (- (frame-height) (window-text-height (minibuffer-window)) 1)
+       (- (/ (- (frame-inner-height) (window-pixel-height (minibuffer-window))) (default-line-height)) 1)
      ;; (window-mode-line-height which-key--window))
      ;; FIXME: change to something like
      ;; (min which-*-height (calculate-max-height))
