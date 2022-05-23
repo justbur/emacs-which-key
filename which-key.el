@@ -93,6 +93,15 @@ Also adds \"..\". If nil, disable any truncation."
   :group 'which-key
   :type '(choice integer (const :tag "Disable truncation" nil)))
 
+(defcustom which-key-description-abbreviations nil
+  "A list of abbreviations to use when the key description is too long.
+Will be applied before the text is truncated.
+Replacements are done in sequence, until all replacements are applied
+or if the text is below `which-key-max-description-length'"
+  :group 'which-key
+  :type '(choice (alist :key-type string :value-type string)
+		 (nil :tag "Disabled")))
+
 (defcustom which-key-min-column-description-width 0
   "Every column should at least have this width."
   :group 'which-key
@@ -140,7 +149,6 @@ the default is \" : \"."
 the default is \"..\"."
   :group 'which-key
   :type 'string)
-
 
 (defcustom which-key-prefix-prefix "+"
   "String to insert in front of prefix commands (i.e., commands
@@ -1587,6 +1595,20 @@ If KEY contains any \"special keys\" defined in
                                (which-key--string-width key-w-face))))
         key-w-face))))
 
+(defsubst which-key--shorten-description (desc)
+  "Shorten DESC descripion using the `which-key-desciption-abbreviations'"
+  (let ((short desc)
+	(pos 0))
+    (when which-key-max-description-length
+      (while (and (> (length short) which-key-max-description-length)
+		  (< pos (length which-key-description-abbreviations)))
+	(let* ((elt (nth pos which-key-description-abbreviations))
+	       (replace (format "\\1%s\\2" (cdr elt)))
+	       (regex (format "\\(-\\)%s\\(-\\|$\\)" (car elt))))
+	  (setq short (replace-regexp-in-string regex replace short t nil nil))
+	  (setq pos (1+ pos)))))
+    short))
+
 (defsubst which-key--truncate-description (desc)
   "Truncate DESC description to `which-key-max-description-length'."
   (let* ((last-face (get-text-property (1- (length desc)) 'face desc))
@@ -1700,13 +1722,14 @@ alists. Returns a list (key separator description)."
     (dolist (key-binding unformatted)
       (let* ((keys (car key-binding))
              (orig-desc (cdr key-binding))
+	     (short-desc (which-key--shorten-description orig-desc))
              (group (which-key--group-p orig-desc))
              (local (eq (which-key--safe-lookup-key local-map (kbd keys))
                         (intern orig-desc)))
              (hl-face (which-key--highlight-face orig-desc))
              (key-binding (which-key--maybe-replace key-binding))
              (final-desc (which-key--propertize-description
-                          (cdr key-binding) group local hl-face orig-desc)))
+                          short-desc group local hl-face orig-desc)))
         (when final-desc
           (setq final-desc
                 (which-key--truncate-description
