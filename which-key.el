@@ -2533,6 +2533,7 @@ KEYMAP is selected interactively by mode in
            nil t nil 'which-key-keymap-history))))
     (which-key--show-keymap (symbol-name mode-sym)
                             (cdr (assq mode-sym minor-mode-map-alist))
+			    nil
                             all)))
 ;;;###autoload
 (defun which-key-show-full-minor-mode-keymap ()
