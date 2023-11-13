@@ -5,7 +5,7 @@
 ;; Author: Justin Burkett <justin@burkett.cc>
 ;; Maintainer: Justin Burkett <justin@burkett.cc>
 ;; URL: https://github.com/justbur/emacs-which-key
-;; Version: 3.5.1
+;; Version: 3.6.0
 ;; Keywords:
 ;; Package-Requires: ((emacs "24.4"))
 
@@ -89,9 +89,16 @@ which-key popup."
 
 (defcustom which-key-max-description-length 27
   "Truncate the description of keys to this length.
-Also adds \"..\". If nil, disable any truncation."
+Either nil (no truncation), an integer (truncate after that many
+characters), a float (use that fraction of the available width),
+or a function, which takes one argument, the available width in
+characters, and whose return value has one of the types mentioned
+before.  Truncation is done using `which-key-ellipsis'."
   :group 'which-key
-  :type '(choice integer (const :tag "Disable truncation" nil)))
+  :type '(choice (const :tag "Disable truncation" nil)
+		 (integer :tag "Width in characters")
+		 (float :tag "Use fraction of available width")
+		 function))
 
 (defcustom which-key-min-column-description-width 0
   "Every column should at least have this width."
@@ -135,12 +142,12 @@ the default is \" : \"."
 
 (defcustom which-key-ellipsis
   (if which-key-dont-use-unicode ".." "…")
-  "Ellipsis to use when truncating. Default is \"…\", unless
-`which-key-dont-use-unicode' is non nil, in which case
-the default is \"..\"."
+  "Ellipsis to use when truncating.
+Default is \"…\", unless `which-key-dont-use-unicode' is non nil,
+in which case the default is \"..\".  This can also be the empty
+string to truncate without using any ellipsis."
   :group 'which-key
   :type 'string)
-
 
 (defcustom which-key-prefix-prefix "+"
   "String to insert in front of prefix commands (i.e., commands
@@ -235,7 +242,7 @@ face to apply)."
 and have `which-key-special-key-face' applied to them. This is
 disabled by default. Try this to see the effect.
 
-\(setq which-key-special-keys '(\"SPC\" \"TAB\" \"RET\" \"ESC\" \"DEL\")\)"
+\(setq which-key-special-keys \\='(\"SPC\" \"TAB\" \"RET\" \"ESC\" \"DEL\")\)"
   :group 'which-key
   :type '(repeat string))
 
@@ -291,10 +298,10 @@ location is tried."
 
 (defcustom which-key-side-window-slot 0
   "The `slot' to use for `display-buffer-in-side-window' when
-`which-key-popup-type' is 'side-window. Quoting from the
+`which-key-popup-type' is `side-window'.  Quoting from the
 docstring of `display-buffer-in-side-window',
 
-‘slot’ if non-nil, specifies the window slot where to display
+`slot' if non-nil, specifies the window slot where to display
 BUFFER.  A value of zero or nil means use the middle slot on the
 specified side.  A negative value means use a slot
 preceding (that is, above or on the left of) the middle slot.  A
@@ -429,6 +436,25 @@ Only takken into account when popup type is side-window."
   :group
   'which-key
   :type 'boolean)
+
+(defvar which-key-C-h-map-prompt
+  (concat " \\<which-key-C-h-map>"
+          " \\[which-key-show-next-page-cycle]"
+          which-key-separator "next-page,"
+          " \\[which-key-show-previous-page-cycle]"
+          which-key-separator "previous-page,"
+          " \\[which-key-undo-key]"
+          which-key-separator "undo-key,"
+          " \\[which-key-toggle-docstrings]"
+          which-key-separator "toggle-docstrings,"
+          " \\[which-key-show-standard-help]"
+          which-key-separator "help,"
+          " \\[which-key-abort]"
+          which-key-separator "abort"
+          " 1..9"
+          which-key-separator "digit-arg")
+  "Prompt to display when invoking `which-key-C-h-map'. This string
+is fed into `substitute-command-keys'")
 
 (defvar which-key-C-h-map
   (let ((map (make-sparse-keymap)))
@@ -725,6 +751,16 @@ checked."
       (when (and result (not (numberp result)))
         result))))
 
+(defsubst which-key--safe-lookup-key-description (keymap key)
+  "Version of `lookup-key' that allows KEYMAP to be nil.
+Also convert numeric results of `lookup-key' to nil. KEY
+should be formatted as an input for `kbd'."
+  (let ((key (ignore-errors (kbd key))))
+    (when (and key (keymapp keymap))
+      (let ((result (lookup-key keymap key)))
+        (when (and result (not (numberp result)))
+          result)))))
+
 ;;; Third-party library support
 ;;;; Evil
 
@@ -782,6 +818,7 @@ disable support."
 (define-minor-mode which-key-mode
   "Toggle which-key-mode."
   :global t
+  :group 'which-key
   :lighter which-key-lighter
   :keymap (let ((map (make-sparse-keymap)))
             (mapc
@@ -905,7 +942,7 @@ replaced. COMMAND can be nil if the binding corresponds to a key
 prefix. An example is
 
 \(which-key-add-keymap-based-replacements global-map
-  \"C-x w\" '\(\"Save as\" . write-file\)\).
+  \"C-x w\" \\='\(\"Save as\" . write-file\)\).
 
 For backwards compatibility, REPLACEMENT can also be a string,
 but the above format is preferred, and the option to use a string
@@ -916,7 +953,7 @@ for REPLACEMENT will eventually be removed."
             ((consp replacement) replacement)
             ((stringp replacement)
              (cons replacement
-                   (or (which-key--safe-lookup-key keymap (kbd key))
+                   (or (which-key--safe-lookup-key-description keymap key)
                        (make-sparse-keymap))))
             (t
              (user-error "replacement is neither a cons cell or a string")))))
@@ -937,7 +974,7 @@ may either be a string, as in
 a cons of two strings as in
 
 \(which-key-add-key-based-replacements \"C-x 8\"
-                                        '(\"unicode\" . \"Unicode keys\")\)
+                                        \\='(\"unicode\" . \"Unicode keys\")\)
 
 or a function that takes a \(KEY . BINDING\) cons and returns a
 replacement.
@@ -1512,8 +1549,9 @@ which are strings. KEY is of the form produced by `key-binding'."
   (key-description (which-key--current-key-list key-str)))
 
 (defun which-key--local-binding-p (keydesc)
-  (eq (which-key--safe-lookup-key
-       (current-local-map) (kbd (which-key--current-key-string (car keydesc))))
+  (eq (which-key--safe-lookup-key-description
+       (current-local-map)
+       (which-key--current-key-string (car keydesc)))
       (intern (cdr keydesc))))
 
 (defun which-key--map-binding-p (map keydesc)
@@ -1521,15 +1559,15 @@ which are strings. KEY is of the form produced by `key-binding'."
   (or
    (when (bound-and-true-p evil-state)
      (let ((lookup
-            (which-key--safe-lookup-key
+            (which-key--safe-lookup-key-description
              map
-             (kbd (which-key--current-key-string
-                   (format "<%s-state> %s" evil-state (car keydesc)))))))
+             (which-key--current-key-string
+              (format "<%s-state> %s" evil-state (car keydesc))))))
        (or (eq lookup (intern (cdr keydesc)))
            (and (keymapp lookup) (string= (cdr keydesc) "Prefix Command")))))
    (let ((lookup
-          (which-key--safe-lookup-key
-           map (kbd (which-key--current-key-string (car keydesc))))))
+          (which-key--safe-lookup-key-description
+           map (which-key--current-key-string (car keydesc)))))
      (or (eq lookup (intern (cdr keydesc)))
          (and (keymapp lookup) (string= (cdr keydesc) "Prefix Command"))))))
 
@@ -1586,13 +1624,23 @@ If KEY contains any \"special keys\" defined in
                                (which-key--string-width key-w-face))))
         key-w-face))))
 
-(defsubst which-key--truncate-description (desc)
+(defsubst which-key--truncate-description (desc avl-width)
   "Truncate DESC description to `which-key-max-description-length'."
-  (let* ((last-face (get-text-property (1- (length desc)) 'face desc))
-         (dots (which-key--propertize which-key-ellipsis 'face last-face)))
-    (if (and which-key-max-description-length
-             (> (length desc) which-key-max-description-length))
-        (concat (substring desc 0 which-key-max-description-length) dots)
+  (let* ((max which-key-max-description-length)
+	 (max (cl-etypecase max
+		(null nil)
+		(integer max)
+		(float (truncate (* max avl-width)))
+		(function (let ((val (funcall max avl-width)))
+			    (if (floatp val) (truncate val) val))))))
+    (if (and max (> (length desc) max))
+        (let ((dots (and (not (equal which-key-ellipsis ""))
+			 (which-key--propertize
+			  which-key-ellipsis 'face
+			  (get-text-property (1- (length desc)) 'face desc)))))
+	  (if dots
+              (concat (substring desc 0 (- max (length dots))) dots)
+	    (substring desc 0 max)))
       desc)))
 
 (defun which-key--highlight-face (description)
@@ -1695,12 +1743,14 @@ alists. Returns a list (key separator description)."
          (which-key--propertize which-key-separator
                                 'face 'which-key-separator-face))
         (local-map (current-local-map))
+	(avl-width (cdr (which-key--popup-max-dimensions)))
         new-list)
     (dolist (key-binding unformatted)
       (let* ((keys (car key-binding))
              (orig-desc (cdr key-binding))
              (group (which-key--group-p orig-desc))
-             (local (eq (which-key--safe-lookup-key local-map (kbd keys))
+             (local (eq (which-key--safe-lookup-key-description
+                         local-map keys)
                         (intern orig-desc)))
              (hl-face (which-key--highlight-face orig-desc))
              (key-binding (which-key--maybe-replace key-binding))
@@ -1709,7 +1759,8 @@ alists. Returns a list (key separator description)."
         (when final-desc
           (setq final-desc
                 (which-key--truncate-description
-                 (which-key--maybe-add-docstring final-desc orig-desc))))
+                 (which-key--maybe-add-docstring final-desc orig-desc)
+		 avl-width)))
         (when (consp key-binding)
           (push
            (list (which-key--propertize-key
@@ -1864,22 +1915,24 @@ element in each list element of KEYS."
    (lambda (x y) (max x (which-key--string-width (nth index y))))
    keys :initial-value (if initial-value initial-value 0)))
 
-(defun which-key--pad-column (col-keys)
+(defun which-key--pad-column (col-keys avl-width)
   "Take a column of (key separator description) COL-KEYS,
 calculate the max width in the column and pad all cells out to
 that width."
   (let* ((col-key-width  (+ which-key-add-column-padding
                             (which-key--max-len col-keys 0)))
          (col-sep-width  (which-key--max-len col-keys 1))
-         (col-desc-width (which-key--max-len
-                          col-keys 2 which-key-min-column-description-width))
-         (col-width      (+ 1 col-key-width col-sep-width col-desc-width)))
+	 (avl-width      (- avl-width col-key-width col-sep-width))
+         (col-desc-width (min avl-width
+			      (which-key--max-len
+                               col-keys 2
+			       which-key-min-column-description-width)))
+         (col-width      (+ col-key-width col-sep-width col-desc-width))
+	 (col-format     (concat "%" (int-to-string col-key-width)
+                                 "s%s%-" (int-to-string col-desc-width) "s")))
     (cons col-width
-          (mapcar (lambda (k)
-                    (format (concat "%" (int-to-string col-key-width)
-                                    "s%s%-" (int-to-string col-desc-width) "s")
-                            (nth 0 k) (nth 1 k) (nth 2 k)))
-                  col-keys))))
+          (mapcar (lambda (k) (apply #'format col-format k))
+		  col-keys))))
 
 (defun which-key--partition-list (n list)
   "Partition LIST into N-sized sublists."
@@ -1893,8 +1946,8 @@ that width."
   "Convert list of KEYS to columns based on dimensions AVL-LINES and AVL-WIDTH.
 Returns a `which-key--pages' object that holds the page strings,
 as well as metadata."
-  (let ((cols-w-widths (mapcar #'which-key--pad-column
-                               (which-key--partition-list avl-lines keys)))
+  (let ((cols-w-widths (mapcar (lambda (c) (which-key--pad-column c avl-width))
+			       (which-key--partition-list avl-lines keys)))
         (page-width 0) (n-pages 0) (n-keys 0) (n-columns 0)
         page-cols pages page-widths keys/page col)
     (if (> (apply #'max (mapcar #'car cols-w-widths)) avl-width)
@@ -1912,10 +1965,10 @@ as well as metadata."
         (while (and cols-w-widths
                     (or (null which-key-max-display-columns)
                         (< n-columns which-key-max-display-columns))
-                    (<= (+ (caar cols-w-widths) page-width) avl-width))
+                    (<= (+ page-width 1 (caar cols-w-widths)) avl-width))
           (setq col (pop cols-w-widths))
           (push (cdr col) page-cols)
-          (cl-incf page-width (car col))
+          (cl-incf page-width (1+ (car col)))
           (cl-incf n-keys (length (cdr col)))
           (cl-incf n-columns))
         (push (which-key--join-columns page-cols) pages)
@@ -1972,8 +2025,9 @@ is the width of the live window."
          (avl-lines (if prefix-top-bottom (- max-lines 1) max-lines))
          (min-lines (min avl-lines which-key-min-display-lines))
          (avl-width (if prefix (- max-width prefix) max-width))
-         (vertical (and (eq which-key-popup-type 'side-window)
-                        (member which-key-side-window-location '(left right))))
+         (vertical (or (and (eq which-key-popup-type 'side-window)
+                            (member which-key-side-window-location '(left right)))
+		       (eq which-key-max-display-columns 1)))
          result)
     (setq result
           (which-key--create-pages-1
@@ -1985,6 +2039,9 @@ is the width of the live window."
             (or prefix-title
                 (which-key--maybe-get-prefix-title
                  (key-description prefix-keys))))
+      (when prefix-top-bottom
+	;; Add back the line earlier reserved for the page information.
+        (setf (which-key--pages-height result) max-lines))
       (when (and (= (which-key--pages-num-pages result) 1)
                  (> which-key-min-display-lines
                     (which-key--pages-height result)))
@@ -2381,22 +2438,7 @@ prefix) if `which-key-use-C-h-commands' is non nil."
                                   full-prefix
                                   (which-key--propertize
                                    (substitute-command-keys
-                                    (concat
-                                     " \\<which-key-C-h-map>"
-                                     " \\[which-key-show-next-page-cycle]"
-                                     which-key-separator "next-page,"
-                                     " \\[which-key-show-previous-page-cycle]"
-                                     which-key-separator "previous-page,"
-                                     " \\[which-key-undo-key]"
-                                     which-key-separator "undo-key,"
-                                     " \\[which-key-toggle-docstrings]"
-                                     which-key-separator "toggle-docstrings,"
-                                     " \\[which-key-show-standard-help]"
-                                     which-key-separator "help,"
-                                     " \\[which-key-abort]"
-                                     which-key-separator "abort"
-                                     " 1..9"
-                                     which-key-separator "digit-arg"))
+                                    which-key-C-h-map-prompt)
                                    'face 'which-key-note-face)))
                   (key (let ((key (read-key prompt)))
                          (if (numberp key)
@@ -2640,7 +2682,9 @@ Finally, show the buffer."
                     (and which-key--god-mode-support-enabled
                          (bound-and-true-p god-local-mode)
                          (eq this-command 'god-mode-self-insert))
-                    (null this-command)))
+                    (null this-command))
+                (let ((max-dim (which-key--popup-max-dimensions)))
+                  (> (min (car-safe max-dim) (cdr-safe max-dim)) 0)))
            (when (and (not (equal prefix-keys (which-key--current-prefix)))
                       (or (null which-key-delay-functions)
                           (null (setq delay-time
@@ -2655,6 +2699,9 @@ Finally, show the buffer."
                         (not which-key--secondary-timer-active))
                (which-key--start-timer which-key-idle-secondary-delay t))))
           ((and which-key-show-transient-maps
+                ;; Assuming that if this is not true we're in
+                ;; `which-key-show-top-level', which would then be overwritten.
+                (> (length prefix-keys) 0)
                 (keymapp overriding-terminal-local-map)
                 ;; basic test for it being a hydra
                 (not (eq (lookup-key overriding-terminal-local-map "\C-u")

@@ -3,29 +3,6 @@
   [[http://melpa.org/#/which-key][http://melpa.org/packages/which-key-badge.svg]]
   [[http://stable.melpa.org/#/which-key][file:http://stable.melpa.org/packages/which-key-badge.svg]]
 
-** Recent Changes
-*** 2021-06-21: Add support for menu-item bindings
-    =which-key= will now detect and compute the result of =menu-item=
-    bindings. As a consequence of reworking the internals,
-    =which-key-enable-extended-define-key= is now obsolete (the associated
-    behavior is supported by default).
-
-*** 2020-08-28: Added =which-key-add-keymap-based-replacements=
-    This function provides an alternative interface allowing replacements to be
-    stored directly in keymaps, allowing one to avoid using
-    =which-key-replacement-alist=, which may cause performance issues when it
-    gets very big.
-*** 2019-08-01: Added =which-key-show-early-on-C-h=
-    Allows one to trigger =which-key= on demand, rather than automatically. See
-    the docstring and [[#manual-activation][Manual Activation]].
-
-*** 2017-12-13: Added =which-key-enable-extended-define-key=
-    Allows for a concise syntax to specify replacement text using =define-key=
-    or alternatives that use =define-key= internally. See the docstring and
-    [[#custom-string-replacement-options][Custom String Replacement]].
-
-*** 2017-11-13: Added =which-key-show-major-mode=
-    Shows active bindings in current major-mode map.
 ** Introduction
    =which-key= is a minor mode for Emacs that displays the key bindings
    following your currently entered incomplete command (a prefix) in a
@@ -39,12 +16,6 @@
 
 ** Table of Contents                                                  :TOC_3:
 - [[#which-key][which-key]]
-  - [[#recent-changes][Recent Changes]]
-    - [[#2021-06-21-add-support-for-menu-item-bindings][2021-06-21: Add support for menu-item bindings]]
-    - [[#2020-08-28-added-which-key-add-keymap-based-replacements][2020-08-28: Added =which-key-add-keymap-based-replacements=]]
-    - [[#2019-08-01-added-which-key-show-early-on-c-h][2019-08-01: Added =which-key-show-early-on-C-h=]]
-    - [[#2017-12-13-added-which-key-enable-extended-define-key][2017-12-13: Added =which-key-enable-extended-define-key=]]
-    - [[#2017-11-13-added-which-key-show-major-mode][2017-11-13: Added =which-key-show-major-mode=]]
   - [[#introduction][Introduction]]
   - [[#install][Install]]
     - [[#melpa][MELPA]]
@@ -278,17 +249,22 @@
      example,
 
      #+BEGIN_SRC emacs-lisp
-     (define-key some-map "f" '("foo" . command-foo))
-     (define-key some-map "b" '("bar-prefix" . (keymap)))
+       (define-key some-map "f" '("foo" . command-foo))
+       (define-key some-map "b" '("bar-prefix" . (keymap)))
+       (setq my-map (make-sparse-keymap))
+       (define-key some-map "b" (cons "bar-prefix" my-map))
      #+END_SRC
 
      binds =command-foo= to =f= in =some-map=, but also stores the string "foo"
      which which-key will extract to use to describe this command. The second
      example binds an empty keymap to =b= in =some-map= and uses "bar-prefix" to
-     describe it. These bindings are accepted by =define-key= natively (i.e.,
-     with or without which-key being loaded). Since many key-binding utilities
-     use =define-key= internally, this functionality should be available with
-     your favorite method of defining keys as well.
+     describe it. The last two lines replicate the functionality of the second
+     line, while assigning the new keymap to the symbol =my-map= (note the use
+     of =cons= to ensure that =my-map= is evaluated for =define-key=). These
+     bindings are accepted by =define-key= natively (i.e., with or without
+     which-key being loaded). Since many key-binding utilities use =define-key=
+     internally, this functionality should be available with your favorite
+     method of defining keys as well.
 
      The second method is to use =which-key-add-keymap-based-replacements=. The
      statement
@@ -515,6 +491,7 @@
 
       ;; Set the maximum length (in characters) for key descriptions (commands or
       ;; prefixes). Descriptions that are longer are truncated and have ".." added.
+      ;; This can also be a float (fraction of available width) or a function.
       (setq which-key-max-description-length 27)
 
       ;; Use additional padding between columns of keys. This variable specifies the
