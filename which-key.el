@@ -814,6 +814,43 @@ disable support."
     (advice-add 'god-mode-lookup-command :around
                 #'which-key--god-mode-lookup-command-advice)))
 
+;;;; Devil
+
+(defvar which-key--devil-support-enabled nil
+  "Support devil if non-nil.
+This is experimental, so you need to explicitly opt-in for now. Please
+report any problems at github.")
+
+(defvar which-key--devil-key-string nil
+  "Holds key string to use for devil support.")
+
+(defun which-key--devil--read-key-advice (orig-fun prompt key &rest args)
+  "Wrap `devil--read-key' to store the current command.
+ORIG-FUN is the function which is being wrapped. PROMPT and KEY are
+the first and second arguments which are passed to ORIG-FUN, and ARGS
+is a catch-all for any other arguments which may be passed to
+ORIG-FUN. This current command will be stored in
+`which-key--devil-key-string'."
+  (setq which-key--devil-key-string
+        (when (fboundp 'devil--translate) (devil--translate key)))
+  (unwind-protect
+      (apply orig-fun prompt key args)
+    (when (bound-and-true-p which-key-mode)
+      (which-key--hide-popup))))
+
+(defun which-key-enable-devil-support (&optional disable)
+  "Enable support for devil if non-nil.
+This is experimental, so you need to explicitly opt-in for now.
+Please report any problems at github. If DISABLE is non-nil
+disable support."
+  (interactive "P")
+  (setq which-key--devil-support-enabled (null disable))
+  (if disable
+      (advice-remove 'devil--read-key
+                     #'which-key--devil--read-key-advice)
+    (advice-add 'devil--read-key :around
+                #'which-key--devil--read-key-advice)))
+
 ;;; Mode
 
 ;;;###autoload
@@ -2634,7 +2671,9 @@ Finally, show the buffer."
      (* 1000 (float-time (time-since start-time))))))
 
 (defun which-key--this-command-keys ()
-  "Version of `this-single-command-keys' corrected for key-chords and god-mode."
+  "Version of `this-single-command-keys' corrected for dependencies.
+The dependencies currently considered (if available and enabled) are
+key-chords, god-mode, and devil."
   (let ((this-command-keys (this-single-command-keys)))
     (when (and (vectorp this-command-keys)
                (> (length this-command-keys) 0)
@@ -2646,6 +2685,11 @@ Finally, show the buffer."
                (eq this-command 'god-mode-self-insert))
       (setq this-command-keys (when which-key--god-mode-key-string
                                 (kbd which-key--god-mode-key-string))))
+    (when (and which-key--devil-support-enabled
+               (bound-and-true-p devil-mode)
+               (eq this-command 'devil)
+               (key-valid-p which-key--devil-key-string))
+      (setq this-command-keys (kbd which-key--devil-key-string)))
     this-command-keys))
 
 (defun which-key--update ()
@@ -2675,6 +2719,9 @@ Finally, show the buffer."
                     (and which-key--god-mode-support-enabled
                          (bound-and-true-p god-local-mode)
                          (eq this-command 'god-mode-self-insert))
+                    (and which-key--devil-support-enabled
+                         (bound-and-true-p devil-mode)
+                         (eq this-command 'devil))
                     (null this-command))
                 (let ((max-dim (which-key--popup-max-dimensions)))
                   (> (min (car-safe max-dim) (cdr-safe max-dim)) 0)))
