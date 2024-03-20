@@ -94,6 +94,9 @@
     keys, try making your frame wider or adjusting the defaults related to the
     maximum width (see =M-x customize-group which-key=).
 
+    If the side window is too narrow try increasing the
+    ~which-key-max-description-length~ variable.
+
     [[./img/which-key-right.png]]
 
 *** Side Window Right then Bottom
