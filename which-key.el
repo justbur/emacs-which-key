@@ -2151,19 +2151,26 @@ max-lines max-width avl-lines avl-width (which-key--pages-height result))
     (message "%s" text)))
 
 (defun which-key--next-page-hint (prefix-keys)
-  "Return string for next page hint."
-  (let* ((paging-key (concat prefix-keys " " which-key-paging-key))
-         (paging-key-bound (eq 'which-key-C-h-dispatch
-                               (key-binding (kbd paging-key))))
-         (key (key-description (vector help-char)))
-         (key (if paging-key-bound
-                  (concat key " or " which-key-paging-key)
-                key)))
-    (when (and which-key-use-C-h-commands
-               (not (equal (vector help-char)
-                           (vconcat (kbd prefix-keys)))))
-      (which-key--propertize (format "[%s paging/help]" key)
-                             'face 'which-key-note-face))))
+    "Return string for next page hint."
+    (when which-key-use-C-h-commands
+      (let* ((user-paging-key (concat prefix-keys " " which-key-paging-key))
+             (paging-key (concat prefix-keys " " (help-key)))
+             (help-prefix (or (string-prefix-p (help-key) prefix-keys)
+                              (string-prefix-p "<f1>" prefix-keys)))
+             (keys '()))
+        (when (eq 'which-key-C-h-dispatch
+                  (key-binding (kbd user-paging-key)))
+          (push which-key-paging-key keys))
+        (unless help-prefix
+          (push "?" keys)
+          (push "<f1>" keys)
+          (unless (key-binding (kbd paging-key))
+            (push (help-key) keys)))
+        (when keys
+          (which-key--propertize (format "[%s%spaging/help]"
+                                         (string-join keys " or ")
+                                         which-key-separator)
+                                 'face 'which-key-note-face)))))
 
 (eval-and-compile
   (if (fboundp 'universal-argument--description)
