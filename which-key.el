@@ -238,12 +238,19 @@ face to apply)."
   :version "1.0")
 
 (defcustom which-key-special-keys '()
-  "These keys will automatically be truncated to one character.
+  "These keys will automatically be truncated to one character or symbol.
 They also have `which-key-special-key-face' applied to them. This
 is disabled by default. An example configuration is
 
-\(setq which-key-special-keys \\='(\"SPC\" \"TAB\" \"RET\" \"ESC\" \"DEL\")\)"
-  :type '(repeat string)
+\(setq which-key-special-keys \\='(\"SPC\" \"TAB\" \"RET\" \"ESC\" \"DEL\")\) OR
+\(setq which-key-special-keys
+      \\='((\"SPC\" . \"␣\")
+        (\"TAB\" . \"↹\")
+        (\"RET\" . \"⏎\")
+        (\"ESC\" . \"⎋\")
+        (\"DEL\" . \"⌦\")
+        (\"backspace\" . \"⌫\"))\)"
+  :type '(repeat (choice string cons))
   :version "1.0")
 
 (defcustom which-key-buffer-name " *which-key*"
@@ -1681,11 +1688,14 @@ no title exists."
 (defun which-key--propertize-key (key)
   "Add a face to KEY.
 If KEY contains any \"special keys\" defined in
-`which-key-special-keys' then truncate and add the corresponding
+`which-key-special-keys' then truncate or symbolize and add the corresponding
 `which-key-special-key-face'."
   (let ((key-w-face (which-key--propertize key 'face 'which-key-key-face))
         (regexp (concat "\\("
-                        (mapconcat #'identity which-key-special-keys
+                        (mapconcat #'identity
+                                   (if (consp (car which-key-special-keys))
+                                       (mapcar #'car which-key-special-keys)
+                                     which-key-special-keys)
                                    "\\|")
                         "\\)"))
         (case-fold-search nil))
@@ -1694,8 +1704,12 @@ If KEY contains any \"special keys\" defined in
                (string-match regexp key))
           (let ((beg (match-beginning 0)) (end (match-end 0)))
             (concat (substring key-w-face 0 beg)
-                    (which-key--propertize (substring key-w-face beg (1+ beg))
-                                           'face 'which-key-special-key-face)
+                    (which-key--propertize
+                     (or (cdr
+                          (assoc (substring key-w-face beg end)
+                                 which-key-special-keys #'string=))
+                         (substring key-w-face beg (1+ beg)))
+                     'face 'which-key-special-key-face)
                     (substring key-w-face end
                                (which-key--string-width key-w-face))))
         key-w-face))))
