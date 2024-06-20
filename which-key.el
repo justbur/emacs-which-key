@@ -687,6 +687,9 @@ Used in functions like `which-key-show-keymap'.")
 (defvar which-key--frame nil
   "Holds reference to which-key frame.
 Used when `which-key-popup-type' is frame.")
+(defvar which-key--scroll-pos-table (make-hash-table :test 'equal)
+  "Internal: Holds initial scroll positions of windows
+in which the which-key popup is showing.")
 (defvar which-key--echo-keystrokes-backup nil
   "Backup the initial value of `echo-keystrokes'.")
 (defvar which-key--prefix-help-cmd-backup nil
@@ -1204,7 +1207,13 @@ total height."
     (when (and which-key-idle-secondary-delay which-key--secondary-timer-active)
       (which-key--start-timer))
     (which-key--lighter-restore)
-    (which-key--hide-popup-ignore-command)))
+    (which-key--hide-popup-ignore-command)
+    ;; restore scroll position saved earlier by `which-key--show-popup'
+    (let ((top-pos (gethash (selected-window) which-key--scroll-pos-table)))
+      (when top-pos
+        (scroll-down (* (if (> top-pos (window-start)) -1 1)
+                        (count-screen-lines (window-start) top-pos)))
+        (remhash (selected-window) which-key--scroll-pos-table)))))
 
 (defun which-key--hide-popup-ignore-command ()
   "`which-key--hide-popup' without the check of `real-this-command'."
@@ -1250,6 +1259,8 @@ buffer text to be displayed in the popup.  Return nil if no window
 is shown, or if there is no need to start the closing timer."
   (when (and (> (car act-popup-dim) 0)
              (> (cdr act-popup-dim) 0))
+    ;; save pos at top of this window
+    (puthash (selected-window) (window-start) which-key--scroll-pos-table)
     (cl-case which-key-popup-type
       ;; Not called for minibuffer
       ;; (minibuffer (which-key--show-buffer-minibuffer act-popup-dim))
