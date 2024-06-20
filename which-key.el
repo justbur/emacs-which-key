@@ -2106,8 +2106,9 @@ is the width of the live window."
                        (eq which-key-max-display-columns 1)))
          result)
     (setq result
-          (which-key--create-pages-1
-           keys avl-lines avl-width min-lines vertical))
+	  (when (> avl-lines 0)
+              (which-key--create-pages-1
+               keys avl-lines avl-width min-lines vertical)))
     (when (and result
                (> (which-key--pages-num-pages result) 0))
       (setf (which-key--pages-prefix result) prefix-keys)
@@ -2297,9 +2298,7 @@ current one."
   (which-key--init-buffer) ;; in case it was killed
   (let ((prefix-keys (which-key--current-key-string))
         golden-ratio-mode)
-    (if (null which-key--pages-obj)
-        (message "%s- which-key can't show keys: There is not \
-enough space based on your settings and frame size." prefix-keys)
+    (when which-key--pages-obj
       (when n
         (setq which-key--pages-obj
               (which-key--pages-set-current-page which-key--pages-obj n)))
